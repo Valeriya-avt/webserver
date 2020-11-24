@@ -46,7 +46,7 @@ int init_socket(const char *ip, int port) {
 char *get_word(int * size) {
     char *word = NULL, alpha;
     int n = 0;
-    if (read(0, &alpha, sizeof(char)) < 0) {
+    if (read(0, &alpha, sizeof(char)) <= 0) {
         perror("read");
         return word;
     }
@@ -54,7 +54,7 @@ char *get_word(int * size) {
         word = realloc(word, (n + 1) * sizeof(char));
         word[n] = alpha;
         n++;
-        if (read(0, &alpha, sizeof(char)) < 0) {
+        if (read(0, &alpha, sizeof(char)) <= 0) {
             perror("read");
             return word;
         }
@@ -140,16 +140,18 @@ void send_data(char ***list, int server) {
                 exit(1);
             }
         }
-        write(server, "\n", sizeof(char));
+        if (write(server, "\n", sizeof(char)) <= 0)
+            return;
     }
-    write(server, "\n", sizeof(char));
+    if (write(server, "\n", sizeof(char)) <= 0)
+        return;;
 }
 
 void print(int server) {
     int counter = 0;
     char ch;
     do {
-        if (read(server, &ch, sizeof(char)) <= 0)
+        if ((read(server, &ch, sizeof(char)) <= 0) || ch == EOF)
             return;
         if (ch == '\n')
             counter++;
@@ -187,13 +189,15 @@ int main(int argc, char **argv) {
     char *ip = argv[1];
     int port = atoi(argv[2]);
     int server = init_socket(ip, port);
-    char ***list = NULL;
-    puts("Please enter a file name");
-    list = get_list(ip);
-  //  print_list(list);
-    send_data(list, server);
-    print(server);
-    clear_list(list);
+    while (1) {
+        char ***list = NULL;
+        puts("Please enter a file name");
+        list = get_list(ip);
+      //  print_list(list);
+        send_data(list, server);
+        print(server);
+        clear_list(list);
+    }
     close(server);
     return OK;
 }

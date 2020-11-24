@@ -66,9 +66,9 @@ char *get_client_word(int client_socket, char *end) {
     char *word = NULL, alpha;
     int n = 0;
     do {
-        if (read(client_socket, &alpha, sizeof(char)) < 0) {
-            perror("read");
-            return word;
+        if (read(client_socket, &alpha, sizeof(char)) <= 0) {
+   //         perror("read");
+            return NULL;
         }
         word = realloc(word, (n + 1) * sizeof(char));
         word[n] = alpha;
@@ -88,7 +88,7 @@ char **get_client_string(int client_socket) {
         list = realloc(list, (n + 1) * sizeof(char *));
         list[n] = get_client_word(client_socket, &end);
         n++;
-    } while (end != '\n');
+    } while (end != '\n' && list[n - 1] != NULL);
     list = realloc(list, (n + 1) * sizeof(char *));
     list[n] = NULL;
     return list;
@@ -287,11 +287,14 @@ void send_data(char ***list, int client_socket, int invalid_flag, int type_flag,
                 perror("write");
                 return;
             }
-            write(client_socket, separator, sizeof(char));
+            if (write(client_socket, separator, sizeof(char)) <= 0)
+                return;;
         }
-        write(client_socket, "\n", sizeof(char));
+        if (write(client_socket, "\n", sizeof(char)) <= 0)
+            return;
     }
-    write(client_socket, "\n", sizeof(char));
+    if (write(client_socket, "\n", sizeof(char)) <= 0)
+        return;
     if (!invalid_flag && fd > 0) {
         if (type_flag == TEXT_OR_HTML) {
             while (read(fd, &ch, sizeof(char)) > 0) {
@@ -399,11 +402,9 @@ void interaction_with_client(int client_socket) {
 
 void connect_to_clients(int *client_sockets, struct sockaddr_in *client_addresses,
     int *num_of_clients, int server_socket, pid_t *pids) {
-    // int i, *client_sockets = malloc(num_of_clients * sizeof(int *));
-    // struct sockaddr_in *client_addresses = malloc(num_of_clients * sizeof(struct sockaddr_in));
-    // pid_t pids = malloc(num_of_clients * sizeof(pid_t));
     int i, j;
     socklen_t size;
+    char final_symbol = EOF;
     puts("Wait for connection");
     for (i = 0; i < *num_of_clients; i++) {
         size = sizeof(struct sockaddr_in);
@@ -418,7 +419,10 @@ void connect_to_clients(int *client_sockets, struct sockaddr_in *client_addresse
         if (pids[i] == 0) {
             for (j = 0; j < i; j++)
                 close(client_sockets[j]);
-            interaction_with_client(client_sockets[i]);
+            while (1) {
+                interaction_with_client(client_sockets[i]);
+                write(client_sockets[i], &final_symbol, sizeof(char));
+            }
             close(client_sockets[i]);
             close(server_socket);
             return;
