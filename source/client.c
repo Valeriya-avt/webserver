@@ -43,14 +43,14 @@ int init_socket(const char *ip, int port) {
     return server_socket;
 }
 
-char *get_word(int * size) {
+char *get_word(int *size, char separator) {
     char *word = NULL, alpha;
     int n = 0;
     if (read(0, &alpha, sizeof(char)) <= 0) {
         perror("read");
         return word;
     }
-    while (alpha != '\n' && alpha != ' ') {
+    while (alpha != separator) {
         word = realloc(word, (n + 1) * sizeof(char));
         word[n] = alpha;
         n++;
@@ -78,7 +78,7 @@ char **get_first_string() {
             list[i][size] = '\0';
         }
         if (i == 1) {
-            list[i] = get_word(&size);
+            list[i] = get_word(&size, '\n');
         }
         if (i > 1) {
             size = strlen(word_3);
@@ -179,24 +179,27 @@ void clear_list(char ***list) {
 }
 
 int main(int argc, char **argv) {
-    if (argc != 3) {
-        puts("Incorrect args.");
-        puts("./client <ip> <port>");
-        puts("Example:");
-        puts("./client 127.0.0.1 5000");
-        return ERR_INCORRECT_ARGS;
-    }
-    char *ip = argv[1];
-    int port = atoi(argv[2]);
+    // if (argc != 3) {
+    //     puts("Incorrect args.");
+    //     puts("./client <ip> <port>");
+    //     puts("Example:");
+    //     puts("./client 127.0.0.1 5000");
+    //     return ERR_INCORRECT_ARGS;
+    // }
+    int size;
+    puts("Please enter a file name");
+    char *ip = get_word(&size, ':');
+    char *port_str = get_word(&size, '/');
+    int port = atoi(port_str);
     int server = init_socket(ip, port);
     while (1) {
         char ***list = NULL;
-        puts("Please enter a file name");
         list = get_list(ip);
       //  print_list(list);
         send_data(list, server);
         print(server);
         clear_list(list);
+        puts("Please enter a file name");
     }
     close(server);
     return OK;

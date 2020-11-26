@@ -156,9 +156,21 @@ int file_type(char *file_name) {
     return type_flag;
 }
 
-char **get_second_string() {
+char *content_type(int type_flag) {
+    switch(type_flag) {
+        case TEXT_OR_HTML:
+            return "text/html";
+        case BINARY:
+            return "application/octet-stream";
+        case JPEG:
+            return "image/jpeg";
+    }
+    return "wrong type";
+}
+
+char **get_second_string(int type_flag) {
     int i, size;
-    char *word_1 = "content-type:", *word_2 = "text/html";
+    char *word_1 = "content-type:";
     char **str = NULL;
     str = realloc(str, 3 * sizeof(char *));
     for (i = 0; i < 2; i++) {
@@ -170,6 +182,7 @@ char **get_second_string() {
         }
         if (i) {
         //   char *word_2 = file_type(file_name);
+            char *word_2 = content_type(type_flag);
             size = strlen(word_2);
             str[i] = malloc((size + 1) * sizeof(char));
             strcpy(str[i], word_2);
@@ -256,7 +269,7 @@ char ***get_server_list(char *file_name, int type_flag, int *fd) {
                 list[i] = get_first_string();
             }
             if (i == 1) {
-                list[i] = get_second_string();
+                list[i] = get_second_string(type_flag);
             }
             if (i > 1) {
                 list[i] = get_third_string(*fd);
