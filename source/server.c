@@ -181,25 +181,42 @@ char **get_second_string(int type_flag) {
             str[i][size] = '\0';
         }
         if (i) {
-        //   char *word_2 = file_type(file_name);
             char *word_2 = content_type(type_flag);
             size = strlen(word_2);
             str[i] = malloc((size + 1) * sizeof(char));
             strcpy(str[i], word_2);
             str[i][size] = '\0';
-        //    str[i] = file_type(file_name);
         }
     }
     str[i] = NULL;
     return str;
 }
 
-char **get_third_string(int fd) {
-    int i, j = 0, size, file_size, tmp;
+int get_content_length(int fd) {
+    int file_size;
     struct stat file;
     fstat(fd, &file);
     file_size = file.st_size;
-    tmp = file_size;
+    return file_size;
+}
+
+char *get_length_and_rewrite(int fd, int *content_length) {
+    int n = 0;
+    char *data = NULL, ch;
+    while (read(fd, &ch, sizeof(char)) > 0) {
+        data = realloc(data, (n + 1) * sizeof(char));
+        data[n] = ch;
+        n++;
+    }
+    data = realloc(data, (n + 1) * sizeof(char));
+    data[n] = '\0';
+    *content_length = n;
+    return data;
+}
+
+char **get_third_string(char *file_name, int type_flag, int fd, int content_length) {
+    int i, j = 0, size, tmp;
+    tmp = content_length;
     do {
         tmp /= 10;
         j++;
@@ -215,7 +232,7 @@ char **get_third_string(int fd) {
             str[i][size] = '\0';
         }
         if (i) {
-            sprintf(word_2, "%d", file_size);
+            sprintf(word_2, "%d", content_length);
             str[i] = malloc((j + 1) * sizeof(char));
             strcpy(str[i], word_2);
             str[i][j] = '\0';
@@ -251,31 +268,21 @@ char ***response_to_invalid_request() {
     return list;
 }
 
-char ***get_server_list(char *file_name, int type_flag, int *fd) {
-    int i = 1, num_of_str;
+char ***get_server_list(char *file_name, int type_flag, int fd, int content_length) {
+    int i = 1, num_of_str = 3;
     char ***list = NULL;
-    *fd = open(file_name, O_RDONLY);
-    // if (*fd < 0) {
-    //     list = realloc(list, sizeof(char **));
-    //     list[0] = string_for_incorrect_data();
-    // } else {
-        if (type_flag == BINARY)
-            num_of_str = 2;
-        else
-            num_of_str = 3;
-        for (i = 0; i < num_of_str; i++) {
-            list = realloc(list, (i + 1) * sizeof(char **));
-            if (!i) {
-                list[i] = get_first_string();
-            }
-            if (i == 1) {
-                list[i] = get_second_string(type_flag);
-            }
-            if (i > 1) {
-                list[i] = get_third_string(*fd);
-            }
+    for (i = 0; i < num_of_str; i++) {
+        list = realloc(list, (i + 1) * sizeof(char **));
+        if (!i) {
+            list[i] = get_first_string();
         }
-   // }
+        if (i == 1) {
+            list[i] = get_second_string(type_flag);
+        }
+        if (i > 1) {
+            list[i] = get_third_string(file_name, type_flag, fd, content_length);
+        }
+    }
     list = realloc(list, (i + 1) * sizeof(char **));
     list[i] = NULL;
     return list;
@@ -291,35 +298,39 @@ void clear_list(char ***list) {
     free(list);
 }
 
-void send_data(char ***list, int client_socket, int invalid_flag, int type_flag, int fd, int pipe_fd) {
+void send_header(char ***list, int client_socket) {
     int i, j;
-    char *separator = " ", ch;
+    char *separator = " ";
     for (i = 0; list[i] != NULL; i++) {
         for (j = 0; list[i][j] != NULL; j++) {
             if (write(client_socket, list[i][j], (strlen(list[i][j]) + 1) * sizeof(char)) <= 0) {
                 perror("write");
                 return;
             }
-            if (write(client_socket, separator, sizeof(char)) <= 0)
+            if (write(client_socket, separator, sizeof(char)) < 0)
                 return;;
         }
-        if (write(client_socket, "\n", sizeof(char)) <= 0)
+        if (write(client_socket, "\n", sizeof(char)) < 0)
             return;
     }
-    if (write(client_socket, "\n", sizeof(char)) <= 0)
+    if (write(client_socket, "\n", sizeof(char)) < 0)
         return;
-    if (!invalid_flag && fd > 0) {
-        if (type_flag == TEXT_OR_HTML) {
-            while (read(fd, &ch, sizeof(char)) > 0) {
-                if (write(client_socket, &ch, sizeof(char)) <= 0)
-                    return;
-            }
-        }
-        if (type_flag == BINARY)
-            while (read(pipe_fd, &ch, sizeof(char)) > 0) {
-                if (write(client_socket, &ch, sizeof(char)) <= 0)
-                    return;
-            }
+}
+
+void send_data(int client_socket, int fd) {
+    char ch;
+    while (read(fd, &ch, sizeof(char)) > 0) {
+        if (write(client_socket, &ch, sizeof(char)) <= 0)
+            return;
+    }
+}
+
+void send_data_array(int client_socket, char *data) {
+    int n = 0;
+    while (data[n] != '\0') {
+        if (write(client_socket, &data[n], sizeof(char)) <= 0)
+            return;
+        n++;
     }
 }
 
@@ -352,11 +363,11 @@ void print(char ***list) {
     }
 }
 
-void run_binary(char *file, int *flag, int *pipe_write_fd, int *pipe_read_fd) {
+void run_binary(char *file, int *flag, int *pipe_read_fd) {
     int size, pipefd[2] = {0};
     pipe(pipefd);
     pid_t pid;
-    char **cmd_list = NULL;
+    char **cmd_list = NULL, *final_symbol = NULL;
     cmd_list = realloc(cmd_list, 2 * sizeof(char *));
     size = strlen(file);
     cmd_list[0] = malloc((size + 1) * sizeof(char));
@@ -367,50 +378,76 @@ void run_binary(char *file, int *flag, int *pipe_write_fd, int *pipe_read_fd) {
     if (pid == 0) {
         dup2(pipefd[1], 1);
         if (execvp(cmd_list[0], cmd_list) < 0) {
-        //    *flag = 1;
+            *flag = 1;
             close(pipefd[0]);
             close(pipefd[1]);
             exit(1);
         }
     } else {
-      //  int status;
-        wait(flag);
-        *pipe_write_fd = pipefd[1];
+        waitpid(pid, NULL, 0);
+        write(pipefd[1], final_symbol, sizeof(char));
         *pipe_read_fd = pipefd[0];
     }
+    close(pipefd[1]);
     free(cmd_list[0]);
     free(cmd_list);
 }
 
+void request_is_text(char *file_name, int client_socket, int fd) {
+    int content_length;
+    char ***server_list = NULL;
+    content_length = get_content_length(fd);
+    server_list = get_server_list(file_name, TEXT_OR_HTML, fd, content_length);
+    send_header(server_list, client_socket);
+    send_data(client_socket, fd);
+    clear_list(server_list);
+}
+
+void request_is_binary(char *file_name, int client_socket, int fd) {
+    int exec_flag = 0, pipe_read_fd, content_length;
+    char ***server_list = NULL;
+    run_binary(file_name, &exec_flag, &pipe_read_fd);
+    char *data = get_length_and_rewrite(pipe_read_fd, &content_length);
+    if (exec_flag) {
+        server_list = response_to_invalid_request();
+        send_header(server_list, client_socket);
+        return;
+    }
+    else {
+        server_list = get_server_list(file_name, BINARY, pipe_read_fd, content_length);
+    }
+    send_header(server_list, client_socket);
+    send_data_array(client_socket, data);
+    close(pipe_read_fd);
+    clear_list(server_list);
+    free(data);
+}
+
 void interaction_with_client(int client_socket) {
-    int invalid_flag, type_flag, exec_flag = 0;
-    int fd, pipe_write_fd, pipe_read_fd;
+    int invalid_flag, type_flag, fd;
     char ***client_list = NULL, ***server_list = NULL;
     client_list = get_client_list(client_socket);
     invalid_flag = check_client_list(client_list);
-    if ((invalid_flag) || (fd = open(client_list[0][1], O_RDONLY)) < 0) {
+    if ((invalid_flag) || (fd = open(client_list[0][1], O_RDONLY)) < 0) { //client_list[0][1] == file_name
         server_list = response_to_invalid_request();
+        send_header(server_list, client_socket);
+        clear_list(server_list);
     } else {
         type_flag = file_type(client_list[0][1]);
-        if (type_flag == WRONG_TYPE)
-            server_list = response_to_invalid_request();
-        else
-            if (type_flag == BINARY) {
-                run_binary(client_list[0][1], &exec_flag, &pipe_write_fd, &pipe_read_fd);
-                if (exec_flag)
-                    server_list = response_to_invalid_request();
-                else
-                    server_list = get_server_list(client_list[0][1], type_flag, &fd);
-            }
-            else
-                server_list = get_server_list(client_list[0][1], type_flag, &fd);
+        switch(type_flag) {
+            case TEXT_OR_HTML:
+                request_is_text(client_list[0][1], client_socket, fd);
+                break;
+            case BINARY:
+                request_is_binary(client_list[0][1], client_socket, fd);
+                break;
+            case WRONG_TYPE:
+                server_list = response_to_invalid_request();
+                send_header(server_list, client_socket);
+                break;
+        }
     }
-    close(pipe_write_fd);
-    send_data(server_list, client_socket, invalid_flag, type_flag, fd, pipe_read_fd);
-    // close(pipe_write_fd);
-    close(pipe_read_fd);
     clear_list(client_list);
-    clear_list(server_list);
 }
 
 void connect_to_clients(int *client_sockets, struct sockaddr_in *client_addresses,
