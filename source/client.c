@@ -133,40 +133,38 @@ char ***get_list(char *ip) {
 
 void send_data(char ***list, int server) {
     int i, j;
+  //  char *end_of_str = "\r\n";
     for (i = 0; list[i] != NULL; i++) {
         for (j = 0; list[i][j] != NULL; j++) {
-            if (write(server, list[i][j], (strlen(list[i][j]) + 1) * sizeof(char)) <= 0) {
+            if (write(server, list[i][j], strlen(list[i][j]) * sizeof(char)) <= 0) {
                 perror("write");
                 exit(1);
             }
+            if (list[i][j + 1] != NULL)
+                write(server, " ", sizeof(char));
         }
-        if (write(server, "\n", sizeof(char)) <= 0)
+        if (write(server, "\r\n", sizeof(char) * 2) <= 0)
             return;
     }
-    if (write(server, "\n", sizeof(char)) <= 0)
-        return;;
+    if (write(server, "\r\n", sizeof(char) * 2) <= 0)
+        return;
 }
 
 void print(int server) {
-    int counter = 0;
     char ch;
-    do {
-        if ((read(server, &ch, sizeof(char)) <= 0) || ch == EOF)
-            return;
-        if (ch == '\n')
-            counter++;
+    while (read(server, &ch, sizeof(char)) > 0) {
         if (write(1, &ch, sizeof(char)) <= 0)
             return;
-    } while(1);
+    }
 }
 
-// void print_list(char ***list) {
-//     int i, j;
-//     for (i = 0; list[i] != NULL; i++) {
-//         for (j = 0; list[i][j] != NULL; j++)
-//             printf("list[%d][%d] = %s", i, j, list[i][j]);
-//     }
-// }
+void print_list(char ***list) {
+    int i, j;
+    for (i = 0; list[i] != NULL; i++) {
+        for (j = 0; list[i][j] != NULL; j++)
+            printf("list[%d][%d] = %s", i, j, list[i][j]);
+    }
+}
 
 void clear_list(char ***list) {
     int i, j;
@@ -179,28 +177,20 @@ void clear_list(char ***list) {
 }
 
 int main(int argc, char **argv) {
-    // if (argc != 3) {
-    //     puts("Incorrect args.");
-    //     puts("./client <ip> <port>");
-    //     puts("Example:");
-    //     puts("./client 127.0.0.1 5000");
-    //     return ERR_INCORRECT_ARGS;
-    // }
     int size;
-    puts("Please enter a file name");
-    char *ip = get_word(&size, ':');
-    char *port_str = get_word(&size, '/');
-    int port = atoi(port_str);
-    int server = init_socket(ip, port);
     while (1) {
+        puts("Please enter your request");
+        char *ip = get_word(&size, ':');
+        char *port_str = get_word(&size, '/');
+        int port = atoi(port_str);
+        int server = init_socket(ip, port);
         char ***list = NULL;
         list = get_list(ip);
-      //  print_list(list);
+    //    print_list(list);
         send_data(list, server);
         print(server);
         clear_list(list);
-        puts("Please enter a file name");
+        close(server);
     }
-    close(server);
     return OK;
 }

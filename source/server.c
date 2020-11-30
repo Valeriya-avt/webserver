@@ -12,6 +12,8 @@
 #include <unistd.h>
 #include <wait.h>
 
+int current_num_of_clients = 0;
+
 enum errors {
     OK,
     ERR_INCORRECT_ARGS,
@@ -65,15 +67,19 @@ int init_socket(int port, int num_of_clients) {
 char *get_client_word(int client_socket, char *end) {
     char *word = NULL, alpha;
     int n = 0;
-    do {
-        if (read(client_socket, &alpha, sizeof(char)) <= 0) {
-   //         perror("read");
-            return NULL;
-        }
+    if (read(client_socket, &alpha, sizeof(char)) < 0) {
+        return NULL;
+    }
+    while (alpha != ' ' && alpha != '\0' && alpha != '\r') {
         word = realloc(word, (n + 1) * sizeof(char));
         word[n] = alpha;
         n++;
-    } while (alpha != ' ' && alpha != '\0' && alpha != '\n');
+        if (read(client_socket, &alpha, sizeof(char)) < 0) {
+            return NULL;
+        }
+    }
+    if (alpha == '\r')
+        read(client_socket, &alpha, sizeof(char));
     word = realloc(word, (n + 1) * sizeof(char));
     word[n] = '\0';
     *end = alpha;
@@ -393,6 +399,14 @@ void run_binary(char *file, int *flag, int *pipe_read_fd) {
     free(cmd_list);
 }
 
+void print_list(char ***list) {
+    int i, j;
+    for (i = 0; list[i] != NULL; i++) {
+        for (j = 0; list[i][j] != NULL; j++)
+            printf("list[%d][%d] = %s", i, j, list[i][j]);
+    }
+}
+
 void request_is_text(char *file_name, int client_socket, int fd) {
     int content_length;
     char ***server_list = NULL;
@@ -427,6 +441,7 @@ void interaction_with_client(int client_socket) {
     int invalid_flag, type_flag, fd;
     char ***client_list = NULL, ***server_list = NULL;
     client_list = get_client_list(client_socket);
+  //  print_list(client_list);
     invalid_flag = check_client_list(client_list);
     if ((invalid_flag) || (fd = open(client_list[0][1], O_RDONLY)) < 0) { //client_list[0][1] == file_name
         server_list = response_to_invalid_request();
@@ -454,12 +469,11 @@ void connect_to_clients(int *client_sockets, struct sockaddr_in *client_addresse
     int *num_of_clients, int server_socket, pid_t *pids) {
     int i, j;
     socklen_t size;
-    char final_symbol = EOF;
     puts("Wait for connection");
     for (i = 0; i < *num_of_clients; i++) {
         size = sizeof(struct sockaddr_in);
         client_sockets[i] = accept(server_socket, (struct sockaddr *) &client_addresses[i], (socklen_t *) &size);
-        if (client_sockets < 0) {
+        if (client_sockets[i] < 0) {
             perror("accept");
             *num_of_clients = i + 1;
             return;
@@ -471,7 +485,13 @@ void connect_to_clients(int *client_sockets, struct sockaddr_in *client_addresse
                 close(client_sockets[j]);
             while (1) {
                 interaction_with_client(client_sockets[i]);
-                write(client_sockets[i], &final_symbol, sizeof(char));
+                close(client_sockets[i]);
+                client_sockets[i] = accept(server_socket, (struct sockaddr *) &client_addresses[i], (socklen_t *) &size);
+                if (client_sockets[i] < 0) {
+                    perror("accept");
+                    *num_of_clients = i + 1;
+                    return;
+                }
             }
             close(client_sockets[i]);
             close(server_socket);
