@@ -70,6 +70,11 @@ char *get_client_word(int client_socket, char *end) {
     if (read(client_socket, &alpha, sizeof(char)) < 0) {
         return NULL;
     }
+    if (alpha == '/') {
+        if (read(client_socket, &alpha, sizeof(char)) < 0) {
+            return NULL;
+        }
+    }
     while (alpha != ' ' && alpha != '\0' && alpha != '\r') {
         word = realloc(word, (n + 1) * sizeof(char));
         word[n] = alpha;
@@ -103,7 +108,7 @@ char **get_client_string(int client_socket) {
 char ***get_client_list(int client_socket) {
     int i;
     char ***list = NULL;
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < 2; i++) {
         list = realloc(list, (i + 1) * sizeof(char **));
         list[i] = get_client_string(client_socket);
     }
@@ -167,7 +172,7 @@ char *content_type(int type_flag) {
         case TEXT_OR_HTML:
             return "text/html";
         case BINARY:
-            return "application/octet-stream";
+            return "text/html";
         case JPEG:
             return "image/jpeg";
     }
@@ -306,20 +311,20 @@ void clear_list(char ***list) {
 
 void send_header(char ***list, int client_socket) {
     int i, j;
-    char *separator = " ";
+    char separator = ' ';
     for (i = 0; list[i] != NULL; i++) {
         for (j = 0; list[i][j] != NULL; j++) {
-            if (write(client_socket, list[i][j], (strlen(list[i][j]) + 1) * sizeof(char)) <= 0) {
+            if (write(client_socket, list[i][j], strlen(list[i][j]) * sizeof(char)) <= 0) {
                 perror("write");
                 return;
             }
-            if (write(client_socket, separator, sizeof(char)) < 0)
-                return;;
+            if (write(client_socket, &separator, sizeof(char)) < 0)
+                return;
         }
-        if (write(client_socket, "\n", sizeof(char)) < 0)
+        if (write(client_socket, "\r\n", sizeof(char) * 2) < 0)
             return;
     }
-    if (write(client_socket, "\n", sizeof(char)) < 0)
+    if (write(client_socket, "\r\n", sizeof(char) * 2) < 0)
         return;
 }
 
@@ -403,7 +408,8 @@ void print_list(char ***list) {
     int i, j;
     for (i = 0; list[i] != NULL; i++) {
         for (j = 0; list[i][j] != NULL; j++)
-            printf("list[%d][%d] = %s", i, j, list[i][j]);
+            printf("list[%d][%d] = %s ", i, j, list[i][j]);
+        putchar('\n');
     }
 }
 
@@ -441,7 +447,7 @@ void interaction_with_client(int client_socket) {
     int invalid_flag, type_flag, fd;
     char ***client_list = NULL, ***server_list = NULL;
     client_list = get_client_list(client_socket);
-  //  print_list(client_list);
+    print_list(client_list);
     invalid_flag = check_client_list(client_list);
     if ((invalid_flag) || (fd = open(client_list[0][1], O_RDONLY)) < 0) { //client_list[0][1] == file_name
         server_list = response_to_invalid_request();
@@ -471,31 +477,26 @@ void connect_to_clients(int *client_sockets, struct sockaddr_in *client_addresse
     socklen_t size;
     puts("Wait for connection");
     for (i = 0; i < *num_of_clients; i++) {
-        size = sizeof(struct sockaddr_in);
-        client_sockets[i] = accept(server_socket, (struct sockaddr *) &client_addresses[i], (socklen_t *) &size);
-        if (client_sockets[i] < 0) {
-            perror("accept");
-            *num_of_clients = i + 1;
-            return;
-        }
-        printf("connected: %s %d\n", inet_ntoa(client_addresses[i].sin_addr), ntohs(client_addresses[i].sin_port));
-        pids[i] = fork();
-        if (pids[i] == 0) {
-            for (j = 0; j < i; j++)
-                close(client_sockets[j]);
-            while (1) {
+        while (1) {
+            size = sizeof(struct sockaddr_in);
+            client_sockets[i] = accept(server_socket, (struct sockaddr *) &client_addresses[i], (socklen_t *) &size);
+            if (client_sockets[i] < 0) {
+                perror("accept");
+                *num_of_clients = i + 1;
+                return;
+            }
+            printf("connected: %s %d\n", inet_ntoa(client_addresses[i].sin_addr), ntohs(client_addresses[i].sin_port));
+            pids[i] = fork();
+            if (pids[i] == 0) {
+                for (j = 0; j < i; j++)
+                    close(client_sockets[j]);
                 interaction_with_client(client_sockets[i]);
                 close(client_sockets[i]);
-                client_sockets[i] = accept(server_socket, (struct sockaddr *) &client_addresses[i], (socklen_t *) &size);
-                if (client_sockets[i] < 0) {
-                    perror("accept");
-                    *num_of_clients = i + 1;
-                    return;
-                }
+                return;
+            } else {
+                waitpid(pids[i], NULL, 0);
+                close(client_sockets[i]);
             }
-            close(client_sockets[i]);
-            close(server_socket);
-            return;
         }
     }
 }
@@ -503,23 +504,23 @@ void connect_to_clients(int *client_sockets, struct sockaddr_in *client_addresse
 int main(int argc, char** argv) {
     if (argc != 3) {
         puts("Incorrect args.");
-        puts("./server <port>");
+        puts("./server <port> <num of clients>");
         puts("Example:");
-        puts("./server 5000 (1-5)");
+        puts("./server 5000 5");
         return ERR_INCORRECT_ARGS;
     }
     int port = atoi(argv[1]);
     int num_of_clients = atoi(argv[2]);
     int server_socket = init_socket(port, 1);
-    int i, *client_sockets = malloc(num_of_clients * sizeof(int *));
+    int *client_sockets = malloc(num_of_clients * sizeof(int *));
     struct sockaddr_in *client_addresses = malloc(num_of_clients * sizeof(struct sockaddr_in));
     pid_t *pids = malloc(num_of_clients * sizeof(pid_t));
     connect_to_clients(client_sockets, client_addresses, &num_of_clients, server_socket, pids);
-    for (i = 0; i < num_of_clients; i++) {
-        close(client_sockets[i]);
-        waitpid(pids[i], NULL, 0);
-    }
-    close(server_socket);
+    // for (i = 0; i < num_of_clients; i++) {
+    //     waitpid(pids[i], NULL, 0);
+    //     close(client_sockets[i]);
+    // }
+  //  close(server_socket);
     free(pids);
     free(client_sockets);
     free(client_addresses);

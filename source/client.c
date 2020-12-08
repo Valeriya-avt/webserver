@@ -82,7 +82,6 @@ char **get_first_string() {
         }
         if (i > 1) {
             size = strlen(word_3);
-        //    printf("strlen(HTTP/1.1/n) = %d\n", size);
             list[i] = malloc((size + 1)* sizeof(char));
             strcpy(list[i], word_3);
             list[i][size] = '\0';
@@ -133,7 +132,6 @@ char ***get_list(char *ip) {
 
 void send_data(char ***list, int server) {
     int i, j;
-  //  char *end_of_str = "\r\n";
     for (i = 0; list[i] != NULL; i++) {
         for (j = 0; list[i][j] != NULL; j++) {
             if (write(server, list[i][j], strlen(list[i][j]) * sizeof(char)) <= 0) {
@@ -146,13 +144,11 @@ void send_data(char ***list, int server) {
         if (write(server, "\r\n", sizeof(char) * 2) <= 0)
             return;
     }
-    if (write(server, "\r\n", sizeof(char) * 2) <= 0)
-        return;
 }
 
 void print(int server) {
     char ch;
-    while (read(server, &ch, sizeof(char)) > 0) {
+    while ((read(server, &ch, sizeof(char)) > 0) && ch != EOF) {
         if (write(1, &ch, sizeof(char)) <= 0)
             return;
     }
