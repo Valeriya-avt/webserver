@@ -75,7 +75,7 @@ char *get_client_word(int client_socket, char *end) {
             return NULL;
         }
     }
-    while (alpha != ' ' && alpha != '\0' && alpha != '\r') {
+    while (alpha != ' ' && alpha != '?' && alpha != '\0' && alpha != '\r') {
         word = realloc(word, (n + 1) * sizeof(char));
         word[n] = alpha;
         n++;
@@ -352,9 +352,9 @@ int check_client_list(char ***list) {
             if (!i && !j) {
                 counter += strcmp(list[i][j], "GET");
             }
-            if (!i && j == 2) {
-                counter += strcmp(list[i][j], "HTTP/1.1");
-            }
+            // if (!i && j == 2) {
+            //     counter += strcmp(list[i][j], "HTTP/1.1");
+            // }
             if (i == 1 && !j) {
                 counter += strcmp(list[i][j], "Host:");
             }
@@ -374,7 +374,56 @@ void print(char ***list) {
     }
 }
 
-void run_binary(char *file, int *flag, int *pipe_read_fd) {
+char *get_arg(char *str, int *index) {
+    int i = *index, j = 0;
+    char *word = NULL;
+    for (j = 0; str[i] != '=' && str[i] != '&' && str[i] != '\0'; j++, i++) {
+        word = realloc(word, (j + 1) * sizeof(char));
+        word[j] = str[i];
+    }
+    // while (str[i] != '=' && str[i] != '&' && str[i] != '\0') {
+    //     word = realloc(word, (j + 1) * sizeof(char));
+    //     word[j] = str[i];
+    //     i++;
+    //     j++;
+    // }
+    word = realloc(word, (j + 1) * sizeof(char));
+    word[j] = '\0';
+    *index = i;
+    return word;
+}
+
+char **get_list_of_args(char *file_name, char *str) {
+    int n = 0, index = 0, size;
+    char **args = NULL;
+    if (str == NULL)
+        return NULL;
+    args = realloc(args, (n + 1) * sizeof(char *));
+    size = strlen(file_name);
+    args[n] = malloc((size + 1) * sizeof(char));
+    strcpy(args[n], file_name);
+    args[n][size] = '\0';
+    n++;
+    do {
+   //     puts("hi");
+        args = realloc(args, (n + 1) * sizeof(char *));
+        args[n] = get_arg(str, &index);
+        // for (j = 0; str[i] != '=' && str[i] != '&' && str[i] != '\0'; j++, i++) {
+        //     char word = NULL;
+        //     args[n] = realloc(args[n], (j + 1) * sizeof(char));
+        //     args[n][j] = str[i];
+        // }
+        // args[n] = realloc(args[n], (j + 1) * sizeof(char));
+        // args[n][j] = '\0';
+        n++;
+        index++;
+    } while (str[index - 1] != '\0');
+    args = realloc(args, (n + 1) * sizeof(char *));
+    args[n] = NULL;
+    return args;
+}
+
+void run_binary(char *file, char *arg_str, int *flag, int *pipe_read_fd) {
     int size, pipefd[2] = {0};
     pipe(pipefd);
     pid_t pid;
@@ -386,9 +435,23 @@ void run_binary(char *file, int *flag, int *pipe_read_fd) {
     cmd_list[0][size] = '\0';
     cmd_list[1] = NULL;
     pid = fork();
+    // if (pid != 0) {
+    //     args = get_list_of_args(cmd_list[0], arg_str);
+    //     for (i = 0; args[i] != NULL; i++)
+    //         puts(args[i]);
+    // }
     if (pid == 0) {
         dup2(pipefd[1], 1);
-        if (execvp(cmd_list[0], cmd_list) < 0) {
+        // if (execvp(cmd_list[0], cmd_list) < 0) {
+        //     *flag = 1;
+        //     close(pipefd[0]);
+        //     close(pipefd[1]);
+        //     exit(1);
+        // }
+        char **args = get_list_of_args(cmd_list[0], arg_str);
+        // for (i = 0; args[i] != NULL; i++)
+        //     puts(args[i]);
+        if (execv(cmd_list[0], args) < 0) {
             *flag = 1;
             close(pipefd[0]);
             close(pipefd[1]);
@@ -423,10 +486,14 @@ void request_is_text(char *file_name, int client_socket, int fd) {
     clear_list(server_list);
 }
 
-void request_is_binary(char *file_name, int client_socket, int fd) {
+void request_is_binary(char *file_name, char *str, int client_socket, int fd) {
     int exec_flag = 0, pipe_read_fd, content_length;
     char ***server_list = NULL;
-    run_binary(file_name, &exec_flag, &pipe_read_fd);
+    puts(str);
+    if (!strcmp(str, "HTTP/1.1"))
+        run_binary(file_name, NULL, &exec_flag, &pipe_read_fd);
+    else
+        run_binary(file_name, str, &exec_flag, &pipe_read_fd);
     char *data = get_length_and_rewrite(pipe_read_fd, &content_length);
     if (exec_flag) {
         server_list = response_to_invalid_request();
@@ -460,7 +527,8 @@ void interaction_with_client(int client_socket) {
                 request_is_text(client_list[0][1], client_socket, fd);
                 break;
             case BINARY:
-                request_is_binary(client_list[0][1], client_socket, fd);
+                puts("puts1");
+                request_is_binary(client_list[0][1], client_list[0][2], client_socket, fd);
                 break;
             case WRONG_TYPE:
                 server_list = response_to_invalid_request();
@@ -501,7 +569,7 @@ void connect_to_clients(int *client_sockets, struct sockaddr_in *client_addresse
     }
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     if (argc != 3) {
         puts("Incorrect args.");
         puts("./server <port> <num of clients>");
