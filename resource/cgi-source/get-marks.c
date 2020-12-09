@@ -52,8 +52,6 @@ char ***get_data_table(int fd) {
         list[n] = get_string(fd);
         n++;
     } while (list[n - 1] != NULL);
-    // list = realloc(list, (n + 1) * sizeof(char **));
-    // list[n] = NULL;
     return list;
 }
 
@@ -134,12 +132,6 @@ void print_row_or_column(char ***data_table, int row_num, int column_num) {
 void send_data(char ***data_table, char **query, int user_index, int subject_index) {
     int row_num = -1, column_num = -1;
     if (user_index < 0 && subject_index < 0) {
-        // for (i = 0; data_table != NULL && data_table[i] != NULL; i++) {
-        //     for (j = 0; data_table[i][j] != NULL; j++) {
-        //         printf("%s ", data_table[i][j]);
-        //     }
-        //     puts("");
-        // }
         puts("You can find out the marks in:");
         print_row_or_column(data_table, 0, -1);
         puts("from the following users:");
@@ -186,7 +178,6 @@ int main(int argc, char **argv) {
     data_table = get_data_table(fd);
     send_data(data_table, argv, user_index, subject_index);
     close(fd);
- //   print(data_table);
     clear(data_table);
     return 0;
 }
