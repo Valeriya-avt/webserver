@@ -352,9 +352,6 @@ int check_client_list(char ***list) {
             if (!i && !j) {
                 counter += strcmp(list[i][j], "GET");
             }
-            // if (!i && j == 2) {
-            //     counter += strcmp(list[i][j], "HTTP/1.1");
-            // }
             if (i == 1 && !j) {
                 counter += strcmp(list[i][j], "Host:");
             }
@@ -366,14 +363,6 @@ int check_client_list(char ***list) {
         return 1;
 }
 
-void print(char ***list) {
-    int i, j;
-    for (i = 0; list[i] != NULL; i++) {
-        for (j = 0; list[i][j] != NULL; j++)
-            printf("list[%d][%d] = %s", i, j, list[i][j]);
-    }
-}
-
 char *get_arg(char *str, int *index) {
     int i = *index, j = 0;
     char *word = NULL;
@@ -381,12 +370,6 @@ char *get_arg(char *str, int *index) {
         word = realloc(word, (j + 1) * sizeof(char));
         word[j] = str[i];
     }
-    // while (str[i] != '=' && str[i] != '&' && str[i] != '\0') {
-    //     word = realloc(word, (j + 1) * sizeof(char));
-    //     word[j] = str[i];
-    //     i++;
-    //     j++;
-    // }
     word = realloc(word, (j + 1) * sizeof(char));
     word[j] = '\0';
     *index = i;
@@ -405,16 +388,8 @@ char **get_list_of_args(char *file_name, char *str) {
     args[n][size] = '\0';
     n++;
     do {
-   //     puts("hi");
         args = realloc(args, (n + 1) * sizeof(char *));
         args[n] = get_arg(str, &index);
-        // for (j = 0; str[i] != '=' && str[i] != '&' && str[i] != '\0'; j++, i++) {
-        //     char word = NULL;
-        //     args[n] = realloc(args[n], (j + 1) * sizeof(char));
-        //     args[n][j] = str[i];
-        // }
-        // args[n] = realloc(args[n], (j + 1) * sizeof(char));
-        // args[n][j] = '\0';
         n++;
         index++;
     } while (str[index - 1] != '\0');
@@ -435,22 +410,9 @@ void run_binary(char *file, char *arg_str, int *flag, int *pipe_read_fd) {
     cmd_list[0][size] = '\0';
     cmd_list[1] = NULL;
     pid = fork();
-    // if (pid != 0) {
-    //     args = get_list_of_args(cmd_list[0], arg_str);
-    //     for (i = 0; args[i] != NULL; i++)
-    //         puts(args[i]);
-    // }
     if (pid == 0) {
         dup2(pipefd[1], 1);
-        // if (execvp(cmd_list[0], cmd_list) < 0) {
-        //     *flag = 1;
-        //     close(pipefd[0]);
-        //     close(pipefd[1]);
-        //     exit(1);
-        // }
         char **args = get_list_of_args(cmd_list[0], arg_str);
-        // for (i = 0; args[i] != NULL; i++)
-        //     puts(args[i]);
         if (execv(cmd_list[0], args) < 0) {
             *flag = 1;
             close(pipefd[0]);
@@ -489,7 +451,6 @@ void request_is_text(char *file_name, int client_socket, int fd) {
 void request_is_binary(char *file_name, char *str, int client_socket, int fd) {
     int exec_flag = 0, pipe_read_fd, content_length;
     char ***server_list = NULL;
-    puts(str);
     if (!strcmp(str, "HTTP/1.1"))
         run_binary(file_name, NULL, &exec_flag, &pipe_read_fd);
     else
@@ -514,7 +475,7 @@ void interaction_with_client(int client_socket) {
     int invalid_flag, type_flag, fd;
     char ***client_list = NULL, ***server_list = NULL;
     client_list = get_client_list(client_socket);
-    print_list(client_list);
+  //  print_list(client_list);
     invalid_flag = check_client_list(client_list);
     if ((invalid_flag) || (fd = open(client_list[0][1], O_RDONLY)) < 0) { //client_list[0][1] == file_name
         server_list = response_to_invalid_request();
@@ -527,12 +488,12 @@ void interaction_with_client(int client_socket) {
                 request_is_text(client_list[0][1], client_socket, fd);
                 break;
             case BINARY:
-                puts("puts1");
                 request_is_binary(client_list[0][1], client_list[0][2], client_socket, fd);
                 break;
             case WRONG_TYPE:
                 server_list = response_to_invalid_request();
                 send_header(server_list, client_socket);
+                clear_list(server_list);
                 break;
         }
     }
@@ -542,11 +503,10 @@ void interaction_with_client(int client_socket) {
 void connect_to_clients(int *client_sockets, struct sockaddr_in *client_addresses,
     int *num_of_clients, int server_socket, pid_t *pids) {
     int i, j;
-    socklen_t size;
     puts("Wait for connection");
     for (i = 0; i < *num_of_clients; i++) {
         while (1) {
-            size = sizeof(struct sockaddr_in);
+            socklen_t size = sizeof(struct sockaddr_in);
             client_sockets[i] = accept(server_socket, (struct sockaddr *) &client_addresses[i], (socklen_t *) &size);
             if (client_sockets[i] < 0) {
                 perror("accept");
@@ -584,11 +544,6 @@ int main(int argc, char **argv) {
     struct sockaddr_in *client_addresses = malloc(num_of_clients * sizeof(struct sockaddr_in));
     pid_t *pids = malloc(num_of_clients * sizeof(pid_t));
     connect_to_clients(client_sockets, client_addresses, &num_of_clients, server_socket, pids);
-    // for (i = 0; i < num_of_clients; i++) {
-    //     waitpid(pids[i], NULL, 0);
-    //     close(client_sockets[i]);
-    // }
-  //  close(server_socket);
     free(pids);
     free(client_sockets);
     free(client_addresses);
