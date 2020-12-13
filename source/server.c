@@ -14,6 +14,17 @@
 
 int current_num_of_clients = 0;
 
+struct pixel {
+    unsigned char r, g, b;
+} typedef Pixel;
+
+struct image {
+    char preheader[18];
+    int w, h;
+    char postheader[28];
+    Pixel **pixmap;
+} typedef Image;
+
 enum errors {
     OK,
     ERR_INCORRECT_ARGS,
@@ -26,6 +37,7 @@ enum errors {
 enum types {
     TEXT_OR_HTML,
     BINARY,
+    PNG,
     JPEG,
     WRONG_TYPE
 };
@@ -67,11 +79,12 @@ int init_socket(int port, int num_of_clients) {
 char *get_client_word(int client_socket, char *end) {
     char *word = NULL, alpha;
     int n = 0;
-    if (read(client_socket, &alpha, sizeof(char)) < 0) {
+    if (read(client_socket, &alpha, sizeof(char)) <= 0) {
         return NULL;
     }
+  //  printf("print1(%d %c) ", alpha, alpha);
     if (alpha == '/') {
-        if (read(client_socket, &alpha, sizeof(char)) < 0) {
+        if (read(client_socket, &alpha, sizeof(char)) <= 0) {
             return NULL;
         }
     }
@@ -79,12 +92,21 @@ char *get_client_word(int client_socket, char *end) {
         word = realloc(word, (n + 1) * sizeof(char));
         word[n] = alpha;
         n++;
-        if (read(client_socket, &alpha, sizeof(char)) < 0) {
+        if (read(client_socket, &alpha, sizeof(char)) <= 0) {
             return NULL;
         }
+      //  printf("print2(%d %c) ", alpha, alpha);
+
     }
-    if (alpha == '\r')
+    if (alpha == '\r') {
         read(client_socket, &alpha, sizeof(char));
+        if (word == NULL) {
+     //       puts("It's NULL world");
+            return NULL;
+        }
+      //  printf("print3(%d %c) ", alpha, alpha);
+    }
+ //   printf("print4(%d %c) ", alpha, alpha);
     word = realloc(word, (n + 1) * sizeof(char));
     word[n] = '\0';
     *end = alpha;
@@ -100,20 +122,28 @@ char **get_client_string(int client_socket) {
         list[n] = get_client_word(client_socket, &end);
         n++;
     } while (end != '\n' && list[n - 1] != NULL);
+    // if (list[n - 1] == NULL) {
+    //     puts("It's NULL word1");
+    // }
     list = realloc(list, (n + 1) * sizeof(char *));
     list[n] = NULL;
     return list;
 }
 
 char ***get_client_list(int client_socket) {
-    int i;
     char ***list = NULL;
-    for (i = 0; i < 2; i++) {
-        list = realloc(list, (i + 1) * sizeof(char **));
-        list[i] = get_client_string(client_socket);
-    }
-    list = realloc(list, (i + 1) * sizeof(char **));
-    list[i] = NULL;
+    int n = 0;
+    do {
+    //    printf("It's %d's string\n", n + 1);
+        list = realloc(list, (n + 1) * sizeof(char **));
+        list[n] = get_client_string(client_socket);
+        n++;
+    } while (list[n - 1][0] != NULL);
+    // if (list[n - 1][0] == NULL) {
+    //     puts("It's NULL string");
+    // }
+    list = realloc(list, (n + 1) * sizeof(char **));
+    list[n] = NULL;
     return list;
 }
 
@@ -142,7 +172,7 @@ char **get_first_string() {
 }
 
 int file_type(char *file_name) {
-    int i = 0, j = 0, type_flag;
+    int i = 0, j = 0, type_flag = -1;
     char *type = NULL;
     while (1) {
         if (file_name[i] == '\0')
@@ -161,7 +191,11 @@ int file_type(char *file_name) {
     } while (file_name[i] != '\0');
     if (!strcmp(type, "txt") || !strcmp(type, "html"))
         type_flag = TEXT_OR_HTML;
-    else
+    if (!strcmp(type, "png"))
+        type_flag = PNG;
+    if (!strcmp(type, "jpg"))
+        type_flag = JPEG;
+    if (type_flag < 0)
         type_flag = WRONG_TYPE;
     free(type);
     return type_flag;
@@ -173,9 +207,10 @@ char *content_type(int type_flag) {
             return "text/html";
         case BINARY:
             return "text/html";
+        case PNG:
+            return "image/png";
         case JPEG:
-            return "image/jpeg";
-    }
+            return "image/jpeg";}
     return "wrong type";
 }
 
@@ -225,7 +260,7 @@ char *get_length_and_rewrite(int fd, int *content_length) {
     return data;
 }
 
-char **get_third_string(char *file_name, int type_flag, int fd, int content_length) {
+char **get_third_string(int fd, int content_length) {
     int i, j = 0, size, tmp;
     tmp = content_length;
     do {
@@ -243,7 +278,7 @@ char **get_third_string(char *file_name, int type_flag, int fd, int content_leng
             str[i][size] = '\0';
         }
         if (i) {
-            sprintf(word_2, "%d", content_length);
+            snprintf(word_2, 1024, "%d", content_length);
             str[i] = malloc((j + 1) * sizeof(char));
             strcpy(str[i], word_2);
             str[i][j] = '\0';
@@ -291,7 +326,7 @@ char ***get_server_list(char *file_name, int type_flag, int fd, int content_leng
             list[i] = get_second_string(type_flag);
         }
         if (i > 1) {
-            list[i] = get_third_string(file_name, type_flag, fd, content_length);
+            list[i] = get_third_string(fd, content_length);
         }
     }
     list = realloc(list, (i + 1) * sizeof(char **));
@@ -433,7 +468,8 @@ void print_list(char ***list) {
     int i, j;
     for (i = 0; list[i] != NULL; i++) {
         for (j = 0; list[i][j] != NULL; j++)
-            printf("list[%d][%d] = %s ", i, j, list[i][j]);
+          //  printf("list[%d][%d] = %s ", i, j, list[i][j]);
+          printf("%s ", list[i][j]);
         putchar('\n');
     }
 }
@@ -471,11 +507,70 @@ void request_is_binary(char *file_name, char *str, int client_socket, int fd) {
     free(data);
 }
 
+Image open_image(char *file_name) {
+    int i, j;
+    Image img;
+    img.pixmap = NULL;
+    int fd = open(file_name, O_RDONLY);
+    read(fd, &img.preheader, sizeof(img.preheader));
+    read(fd, &img.w, sizeof(img.w));
+    read(fd, &img.h, sizeof(img.h));
+    printf("weigth = %d\n heigth = %d\n", img.w, img.h);
+    read(fd, &img.postheader, sizeof(img.postheader));
+    img.pixmap = malloc(img.h * sizeof(struct Pixel *));
+    for (i = 0; i < img.h; i++) {
+        img.pixmap[i] = malloc(img.w * sizeof(Pixel));
+        for (j = 0; j < img.w; j++) {
+            read(fd, &img.pixmap[i][j].r, sizeof(img.pixmap[i][j].r));
+            read(fd, &img.pixmap[i][j].g, sizeof(img.pixmap[i][j].g));
+            read(fd, &img.pixmap[i][j].b, sizeof(img.pixmap[i][j].b));
+        }
+    }
+ //   close(fd);
+    return img;
+}
+
+void send_image(Image img, int client_socket) {
+    int i, j;
+    write(client_socket, &img.preheader, sizeof(img.preheader));
+    write(client_socket, &img.w, sizeof(img.w));
+    write(client_socket, &img.h, sizeof(img.h));
+    write(client_socket, &img.postheader, sizeof(img.postheader));
+    for (i = 0; i < img.h; i++) {
+        for (j = 0; j < img.w; j++) {
+            write(client_socket, &img.pixmap[i][j].r, sizeof(img.pixmap[i][j].r));
+            write(client_socket, &img.pixmap[i][j].g, sizeof(img.pixmap[i][j].g));
+            write(client_socket, &img.pixmap[i][j].b, sizeof(img.pixmap[i][j].b));
+        }
+    }
+}
+
+void destroy_image(Pixel **pixmap, int height) {
+    int i;
+    for (i = 0; i < height; i++)
+        free(pixmap[i]);
+    free(pixmap);
+}
+
+void request_is_multimedia(char *file_name, int client_socket, int type_flag, int fd) {
+    int content_length;
+    char ***server_list = NULL;
+    Image img;
+    content_length = get_content_length(fd);
+    server_list = get_server_list(file_name, type_flag, fd, content_length);
+    send_header(server_list, client_socket);
+    print_list(server_list);
+    img = open_image(file_name);
+    send_image(img, client_socket);
+    clear_list(server_list);
+    destroy_image(img.pixmap, img.h);
+}
+
 void interaction_with_client(int client_socket) {
     int invalid_flag, type_flag, fd;
     char ***client_list = NULL, ***server_list = NULL;
     client_list = get_client_list(client_socket);
-  //  print_list(client_list);
+    print_list(client_list);
     invalid_flag = check_client_list(client_list);
     if ((invalid_flag) || (fd = open(client_list[0][1], O_RDONLY)) < 0) { //client_list[0][1] == file_name
         server_list = response_to_invalid_request();
@@ -490,6 +585,12 @@ void interaction_with_client(int client_socket) {
             case BINARY:
                 request_is_binary(client_list[0][1], client_list[0][2], client_socket, fd);
                 break;
+            case PNG:
+                request_is_multimedia(client_list[0][1], client_socket, type_flag, fd);
+                break;
+            case JPEG:
+                request_is_multimedia(client_list[0][1], client_socket, type_flag, fd);
+                break;
             case WRONG_TYPE:
                 server_list = response_to_invalid_request();
                 send_header(server_list, client_socket);
@@ -501,16 +602,16 @@ void interaction_with_client(int client_socket) {
 }
 
 void connect_to_clients(int *client_sockets, struct sockaddr_in *client_addresses,
-    int *num_of_clients, int server_socket, pid_t *pids) {
+    int num_of_clients, int server_socket, pid_t *pids) {
     int i, j;
     puts("Wait for connection");
-    for (i = 0; i < *num_of_clients; i++) {
+    for (i = 0; i < num_of_clients; i++) {
         while (1) {
             socklen_t size = sizeof(struct sockaddr_in);
             client_sockets[i] = accept(server_socket, (struct sockaddr *) &client_addresses[i], (socklen_t *) &size);
             if (client_sockets[i] < 0) {
                 perror("accept");
-                *num_of_clients = i + 1;
+           //     *num_of_clients = i + 1;
                 return;
             }
             printf("connected: %s %d\n", inet_ntoa(client_addresses[i].sin_addr), ntohs(client_addresses[i].sin_port));
@@ -543,7 +644,7 @@ int main(int argc, char **argv) {
     int *client_sockets = malloc(num_of_clients * sizeof(int *));
     struct sockaddr_in *client_addresses = malloc(num_of_clients * sizeof(struct sockaddr_in));
     pid_t *pids = malloc(num_of_clients * sizeof(pid_t));
-    connect_to_clients(client_sockets, client_addresses, &num_of_clients, server_socket, pids);
+    connect_to_clients(client_sockets, client_addresses, num_of_clients, server_socket, pids);
     free(pids);
     free(client_sockets);
     free(client_addresses);
