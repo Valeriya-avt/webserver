@@ -14,17 +14,6 @@
 
 int current_num_of_clients = 0;
 
-struct pixel {
-    unsigned char r, g, b;
-} typedef Pixel;
-
-struct image {
-    char preheader[18];
-    int w, h;
-    char postheader[28];
-    Pixel **pixmap;
-} typedef Image;
-
 enum errors {
     OK,
     ERR_INCORRECT_ARGS,
@@ -88,7 +77,7 @@ char *get_client_word(int client_socket, char *end) {
             return NULL;
         }
     }
-    while (alpha != ' ' && alpha != '?' && alpha != '\0' && alpha != '\r') {
+    while (alpha != ' ' && alpha != '?' && alpha != '\0' && alpha != '\r' && alpha != '\n') {
         word = realloc(word, (n + 1) * sizeof(char));
         word[n] = alpha;
         n++;
@@ -398,7 +387,7 @@ int check_client_list(char ***list) {
         return 1;
 }
 
-char *get_arg(char *str, int *index) {
+char *get_args(char *str, int *index) {
     int i = *index, j = 0;
     char *word = NULL;
     for (j = 0; str[i] != '=' && str[i] != '&' && str[i] != '\0'; j++, i++) {
@@ -414,8 +403,9 @@ char *get_arg(char *str, int *index) {
 char **get_list_of_args(char *file_name, char *str) {
     int n = 0, index = 0, size;
     char **args = NULL;
-    if (str == NULL)
+    if (str == NULL) {
         return NULL;
+    }
     args = realloc(args, (n + 1) * sizeof(char *));
     size = strlen(file_name);
     args[n] = malloc((size + 1) * sizeof(char));
@@ -424,7 +414,7 @@ char **get_list_of_args(char *file_name, char *str) {
     n++;
     do {
         args = realloc(args, (n + 1) * sizeof(char *));
-        args[n] = get_arg(str, &index);
+        args[n] = get_args(str, &index);
         n++;
         index++;
     } while (str[index - 1] != '\0');
@@ -474,27 +464,24 @@ void print_list(char ***list) {
     }
 }
 
-void request_is_text(char *file_name, int client_socket, int fd) {
+void request_is_text(char *file_name, int client_socket, int type_flag, int fd) {
     int content_length;
     char ***server_list = NULL;
     content_length = get_content_length(fd);
-    server_list = get_server_list(file_name, TEXT_OR_HTML, fd, content_length);
+    server_list = get_server_list(file_name, type_flag, fd, content_length);
     send_header(server_list, client_socket);
     send_data(client_socket, fd);
     clear_list(server_list);
 }
 
-void request_is_binary(char *file_name, char *str, int client_socket, int fd) {
-    int exec_flag = 0, pipe_read_fd, content_length;
+void send_run_binary_result(int client_socket, char *file_name, int pipe_read_fd, int exec_flag) {
+    int content_length;
     char ***server_list = NULL;
-    if (!strcmp(str, "HTTP/1.1"))
-        run_binary(file_name, NULL, &exec_flag, &pipe_read_fd);
-    else
-        run_binary(file_name, str, &exec_flag, &pipe_read_fd);
     char *data = get_length_and_rewrite(pipe_read_fd, &content_length);
     if (exec_flag) {
         server_list = response_to_invalid_request();
         send_header(server_list, client_socket);
+        clear_list(server_list); /////
         return;
     }
     else {
@@ -507,89 +494,53 @@ void request_is_binary(char *file_name, char *str, int client_socket, int fd) {
     free(data);
 }
 
-Image open_image(char *file_name) {
-    int i, j;
-    Image img;
-    img.pixmap = NULL;
-    int fd = open(file_name, O_RDONLY);
-    read(fd, &img.preheader, sizeof(img.preheader));
-    read(fd, &img.w, sizeof(img.w));
-    read(fd, &img.h, sizeof(img.h));
-    printf("weigth = %d\n heigth = %d\n", img.w, img.h);
-    read(fd, &img.postheader, sizeof(img.postheader));
-    img.pixmap = malloc(img.h * sizeof(struct Pixel *));
-    for (i = 0; i < img.h; i++) {
-        img.pixmap[i] = malloc(img.w * sizeof(Pixel));
-        for (j = 0; j < img.w; j++) {
-            read(fd, &img.pixmap[i][j].r, sizeof(img.pixmap[i][j].r));
-            read(fd, &img.pixmap[i][j].g, sizeof(img.pixmap[i][j].g));
-            read(fd, &img.pixmap[i][j].b, sizeof(img.pixmap[i][j].b));
-        }
+void request_is_binary(char *file_name, char *str, int client_socket, int fd) {
+    int exec_flag = 0, pipe_read_fd;
+    if (!strcmp(str, "HTTP/1.1")) {
+        puts("puts2");
+        run_binary(file_name, NULL, &exec_flag, &pipe_read_fd);
     }
- //   close(fd);
-    return img;
+    else
+        run_binary(file_name, str, &exec_flag, &pipe_read_fd);
+    send_run_binary_result(client_socket, file_name, pipe_read_fd, exec_flag);
+//     char *data = get_length_and_rewrite(pipe_read_fd, &content_length);
+//     if (exec_flag) {
+//         server_list = response_to_invalid_request();
+//         send_header(server_list, client_socket);
+//         return;
+//     }
+//     else {
+//         server_list = get_server_list(file_name, BINARY, pipe_read_fd, content_length);
+//     }
+//     send_header(server_list, client_socket);
+//     send_data_array(client_socket, data);
+//     close(pipe_read_fd);
+//     clear_list(server_list);
+//     free(data);
 }
 
-void send_image(Image img, int client_socket) {
-    int i, j;
-    write(client_socket, &img.preheader, sizeof(img.preheader));
-    write(client_socket, &img.w, sizeof(img.w));
-    write(client_socket, &img.h, sizeof(img.h));
-    write(client_socket, &img.postheader, sizeof(img.postheader));
-    for (i = 0; i < img.h; i++) {
-        for (j = 0; j < img.w; j++) {
-            write(client_socket, &img.pixmap[i][j].r, sizeof(img.pixmap[i][j].r));
-            write(client_socket, &img.pixmap[i][j].g, sizeof(img.pixmap[i][j].g));
-            write(client_socket, &img.pixmap[i][j].b, sizeof(img.pixmap[i][j].b));
-        }
-    }
-}
-
-void destroy_image(Pixel **pixmap, int height) {
-    int i;
-    for (i = 0; i < height; i++)
-        free(pixmap[i]);
-    free(pixmap);
-}
-
-void request_is_multimedia(char *file_name, int client_socket, int type_flag, int fd) {
-    int content_length;
+void work_with_get_request(int client_socket, char ***client_list, char *file_name, int invalid_flag, int fd) {
+    int type_flag;
     char ***server_list = NULL;
-    Image img;
-    content_length = get_content_length(fd);
-    server_list = get_server_list(file_name, type_flag, fd, content_length);
-    send_header(server_list, client_socket);
-    print_list(server_list);
-    img = open_image(file_name);
-    send_image(img, client_socket);
-    clear_list(server_list);
-    destroy_image(img.pixmap, img.h);
-}
-
-void interaction_with_client(int client_socket) {
-    int invalid_flag, type_flag, fd;
-    char ***client_list = NULL, ***server_list = NULL;
-    client_list = get_client_list(client_socket);
-    print_list(client_list);
-    invalid_flag = check_client_list(client_list);
-    if ((invalid_flag) || (fd = open(client_list[0][1], O_RDONLY)) < 0) { //client_list[0][1] == file_name
-        server_list = response_to_invalid_request();
-        send_header(server_list, client_socket);
-        clear_list(server_list);
-    } else {
-        type_flag = file_type(client_list[0][1]);
+    // if ((invalid_flag) || (fd = open(client_list[0][1], O_RDONLY)) < 0) { //client_list[0][1] == file_name
+    //     server_list = response_to_invalid_request();
+    //     send_header(server_list, client_socket);
+    //     clear_list(server_list);
+    // } else {
+        type_flag = file_type(file_name);
         switch(type_flag) {
             case TEXT_OR_HTML:
-                request_is_text(client_list[0][1], client_socket, fd);
+                request_is_text(file_name, client_socket, type_flag, fd);
                 break;
             case BINARY:
-                request_is_binary(client_list[0][1], client_list[0][2], client_socket, fd);
+                request_is_binary(file_name, client_list[0][2], client_socket, fd);
+                // client_list[0][2] - possible request parameters
                 break;
             case PNG:
-                request_is_multimedia(client_list[0][1], client_socket, type_flag, fd);
+                request_is_text(file_name, client_socket, type_flag, fd);
                 break;
             case JPEG:
-                request_is_multimedia(client_list[0][1], client_socket, type_flag, fd);
+                request_is_text(file_name, client_socket, type_flag, fd);
                 break;
             case WRONG_TYPE:
                 server_list = response_to_invalid_request();
@@ -597,7 +548,63 @@ void interaction_with_client(int client_socket) {
                 clear_list(server_list);
                 break;
         }
+}
+//
+void work_with_post_request(int client_socket, char *file_name) {
+    int exec_flag = 0, pipe_read_fd;
+    char end;
+    char *request_parameters = get_client_word(client_socket, &end);
+    puts(request_parameters);
+  //  char *file_name = "resource/cgi-bin/get-marks";
+    run_binary(file_name, request_parameters, &exec_flag, &pipe_read_fd);
+    send_run_binary_result(client_socket, file_name, pipe_read_fd, exec_flag);
+}
+
+void interaction_with_client(int client_socket) {
+    int fd;
+    char ***server_list = NULL;
+    int invalid_flag; //file_name_size;
+    char ***client_list = NULL;
+    client_list = get_client_list(client_socket);
+    print_list(client_list);
+    invalid_flag = check_client_list(client_list);
+  //  file_name_size = strlen(client_list[0][1]);
+    // char *file_name = malloc(file_name_size + 1);
+    // strcpy(file_name, client_list[0][1]);
+    // file_name[file_name_size] = '\0';
+
+
+    if ((invalid_flag) || (fd = open(client_list[0][1], O_RDONLY)) < 0) { //client_list[0][1] == file_name
+        server_list = response_to_invalid_request();
+        send_header(server_list, client_socket);
+        clear_list(server_list);
+    } else {
+        if (!strcmp(client_list[0][0], "POST"))
+            work_with_post_request(client_socket, client_list[0][1]);
+        if (!strcmp(client_list[0][0], "GET"))
+            work_with_get_request(client_socket, client_list, client_list[0][1], invalid_flag, fd);
+        // type_flag = file_type(client_list[0][1]);
+        // switch(type_flag) {
+        //     case TEXT_OR_HTML:
+        //         request_is_text(client_list[0][1], client_socket, type_flag, fd);
+        //         break;
+        //     case BINARY:
+        //         request_is_binary(client_list[0][1], client_list[0][2], client_socket, fd);
+        //         break;
+        //     case PNG:
+        //         request_is_text(client_list[0][1], client_socket, type_flag, fd);
+        //         break;
+        //     case JPEG:
+        //         request_is_text(client_list[0][1], client_socket, type_flag, fd);
+        //         break;
+        //     case WRONG_TYPE:
+        //         server_list = response_to_invalid_request();
+        //         send_header(server_list, client_socket);
+        //         clear_list(server_list);
+        //         break;
+        // }
     }
+  // free(file_name);
     clear_list(client_list);
 }
 
