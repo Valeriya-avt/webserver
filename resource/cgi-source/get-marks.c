@@ -95,7 +95,7 @@ int search_data(char ***list, char **query, int user_index, int subject_index, i
                 *row_num = i;
         }
         if (*row_num < 0) {
-            puts("Please enter a valid username");
+            puts("Please enter a valid username<br />");
             return -1;
         }
     }
@@ -106,7 +106,7 @@ int search_data(char ***list, char **query, int user_index, int subject_index, i
         }
         if (*column_num < 0) {
             printf("%s %s\n", query[user_index + 1], query[subject_index + 1]);
-            puts("Please enter a valid discipline");
+            puts("Please enter a valid discipline<br />");
             return -1;
         }
     }
@@ -119,27 +119,28 @@ void print_row_or_column(char ***data_table, int row_num, int column_num) {
         for (i = 1; data_table != NULL && data_table[row_num] != NULL && data_table[row_num][i] != NULL; i++) {
             printf("%s ", data_table[row_num][i]);
         }
-        puts("");
+        puts("<br /><br />");
     }
     if (column_num >= 0) {
         for (i = 1; data_table != NULL && data_table[i] != NULL && data_table[i][column_num] != NULL; i++) {
             printf("%s ", data_table[i][column_num]);
         }
-        puts("");
+        puts("<br /><br />");
     }
 }
 
 void send_data(char ***data_table, char **query, int user_index, int subject_index) {
     int row_num = -1, column_num = -1;
     if (user_index < 0 && subject_index < 0) {
-        puts("You can find out the marks in:");
+        puts("You can find out the marks in:<br /><br />");
         print_row_or_column(data_table, 0, -1);
-        puts("from the following users:");
+        puts("from the following users:<br /><br />");
         print_row_or_column(data_table, -1, 0);
     }
     if (user_index >= 0 && subject_index >= 0) {
         if (search_data(data_table, query, user_index, subject_index, &row_num, &column_num) >= 0)
-            printf("The mark of the user %s in the subject of %s: %s\n", query[user_index + 1], query[subject_index + 1], data_table[row_num][column_num]);
+            printf("The mark of the user %s in the subject of %s: %s<br /><br />", query[user_index + 1],
+            query[subject_index + 1], data_table[row_num][column_num]);
     } else {
         if (user_index >= 0) {
             if (search_data(data_table, query, user_index, subject_index, &row_num, &column_num) >= 0) {
@@ -163,7 +164,7 @@ int main(int argc, char **argv) {
         puts("Too many arguments");
         return 0;
     }
-    if (!(argc % 2)) {
+    if (!(argc % 2) && !strcmp(argv[1], "")) {
         puts("Enter your query in the format key=value");
         return 0;
     }
