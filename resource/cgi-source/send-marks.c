@@ -162,7 +162,7 @@ void send_data(char ***data_table, char **query, int user_index, int subject_ind
     if (user_index < 0 && subject_index < 0) {
         puts("You can change the marks in: ");
         print_row_or_column(data_table, 0, -1);
-        puts("\n");
+        puts("");
         puts("from the following users: ");
         print_row_or_column(data_table, -1, 0);
     }
@@ -170,22 +170,30 @@ void send_data(char ***data_table, char **query, int user_index, int subject_ind
     if (user_index >= 0 && subject_index >= 0 && mark_index >= 0) {
         if (search_data(data_table, query, user_index, subject_index, &row_num, &column_num) >= 0) {
             char *new_marks = get_new_marks(data_table[row_num][column_num], query[mark_index + 1]);
+            printf("You have marked %s for %s in %s\n", query[mark_index + 1], query[user_index + 1], query[subject_index + 1]);
             printf("The mark of the user %s in the subject of %s: %s\n", query[user_index + 1],
             query[subject_index + 1], new_marks);
             add_mark_to_the_file(data_table, new_marks, row_num, column_num);
         }
     } else {
-        if (user_index >= 0) {
+        if ((user_index >= 0 && mark_index >= 0) || (user_index >= 0 && mark_index < 0)){
             if (search_data(data_table, query, user_index, subject_index, &row_num, &column_num) >= 0) {
                 printf("You can rate user %s in the following subjects: ", query[user_index + 1]);
                 print_row_or_column(data_table, 0, column_num - 1);
+                return;
             }
-        } else {
-            if (subject_index >= 0) {
-                if (search_data(data_table, query, user_index, subject_index, &row_num, &column_num) >= 0) {
-                    printf("You can rate the following users in %s: ", query[subject_index + 1]);
-                    print_row_or_column(data_table, row_num - 1, 0);
-                }
+        }
+        if ((subject_index >= 0 && mark_index >= 0) || (subject_index >= 0 && mark_index < 0)) {
+            if (search_data(data_table, query, user_index, subject_index, &row_num, &column_num) >= 0) {
+                printf("You can give %s marks to the following users: ", query[subject_index + 1]);
+                print_row_or_column(data_table, row_num - 1, 0);
+                return;
+            }
+        }
+        if (user_index >= 0 && subject_index >= 0) {
+            if (search_data(data_table, query, user_index, subject_index, &row_num, &column_num) >= 0) {
+                printf("You can mark the user %s in  %s\n", query[user_index + 1], query[subject_index + 1]);
+                return;
             }
         }
     }
