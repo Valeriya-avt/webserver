@@ -95,7 +95,7 @@ int search_data(char ***list, char **query, int user_index, int subject_index, i
                 *row_num = i;
         }
         if (*row_num < 0) {
-            puts("Please enter a valid username<br />");
+            puts("Please enter a valid username");
             return -1;
         }
     }
@@ -106,7 +106,7 @@ int search_data(char ***list, char **query, int user_index, int subject_index, i
         }
         if (*column_num < 0) {
             printf("%s %s\n", query[user_index + 1], query[subject_index + 1]);
-            puts("Please enter a valid discipline<br />");
+            puts("Please enter a valid discipline");
             return -1;
         }
     }
@@ -119,27 +119,29 @@ void print_row_or_column(char ***data_table, int row_num, int column_num) {
         for (i = 1; data_table != NULL && data_table[row_num] != NULL && data_table[row_num][i] != NULL; i++) {
             printf("%s ", data_table[row_num][i]);
         }
-        puts("<br /><br />");
+       // puts("<br /><br />");
+        puts("");
     }
     if (column_num >= 0) {
         for (i = 1; data_table != NULL && data_table[i] != NULL && data_table[i][column_num] != NULL; i++) {
             printf("%s ", data_table[i][column_num]);
         }
-        puts("<br /><br />");
+      //  puts("<br /><br />");
+        puts("");
     }
 }
 
 void send_data(char ***data_table, char **query, int user_index, int subject_index) {
     int row_num = -1, column_num = -1;
     if (user_index < 0 && subject_index < 0) {
-        puts("You can find out the marks in:<br /><br />");
+        puts("You can find out the marks in: ");
         print_row_or_column(data_table, 0, -1);
-        puts("from the following users:<br /><br />");
+        puts("from the following users: ");
         print_row_or_column(data_table, -1, 0);
     }
     if (user_index >= 0 && subject_index >= 0) {
         if (search_data(data_table, query, user_index, subject_index, &row_num, &column_num) >= 0)
-            printf("The mark of the user %s in the subject of %s: %s<br /><br />", query[user_index + 1],
+            printf("The mark of the user %s in the subject of %s: %s/n", query[user_index + 1],
             query[subject_index + 1], data_table[row_num][column_num]);
     } else {
         if (user_index >= 0) {
