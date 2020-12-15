@@ -370,21 +370,25 @@ void send_data_array(int client_socket, char *data) {
 }
 
 int check_client_list(char ***list) {
-    int i, j, counter = 0;
+    int i, j;
     for (i = 0; list[i] != NULL; i++) {
         for (j = 0; list[i][j] != NULL; j++) {
-            if (!i && !j) {
-                counter += strcmp(list[i][j], "GET");
+            if (i == 0 && j == 0) {
+                if (strcmp(list[i][j], "GET") != 0 && strcmp(list[i][j], "POST") != 0)
+           //     counter += strcmp(list[i][j], "GET");
+                    return 1;
             }
             if (i == 1 && !j) {
-                counter += strcmp(list[i][j], "Host:");
+                if (strcmp(list[i][j], "Host:") != 0)
+            //    counter += strcmp(list[i][j], "Host:");
+                    return 1;
             }
         }
     }
-    if (!counter)
+    // if (!counter)
+    //     return 0;
+    // else
         return 0;
-    else
-        return 1;
 }
 
 char *get_args(char *str, int *index) {
@@ -554,8 +558,10 @@ void work_with_post_request(int client_socket, char *file_name) {
     int exec_flag = 0, pipe_read_fd;
     char end;
     char *request_parameters = get_client_word(client_socket, &end);
-    puts(request_parameters);
+    if (request_parameters != NULL)
+        puts(request_parameters);
   //  char *file_name = "resource/cgi-bin/get-marks";
+    printf("%d\n", exec_flag);
     run_binary(file_name, request_parameters, &exec_flag, &pipe_read_fd);
     send_run_binary_result(client_socket, file_name, pipe_read_fd, exec_flag);
 }

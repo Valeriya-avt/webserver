@@ -25,7 +25,7 @@ char HEADER_HTTP[] = "HTTP/1.1";
 char HEADER_HOST[] = "Host: ";
 char SEPARATOR[] = "\r\n";
 
-char HTTP_METHOD[][5] = {
+char HTTP_METHOD[][7] = {
     "GET ",
     "POST "
 };
@@ -92,9 +92,12 @@ char *get_header(char *ip) {
     char *header = "";
     char *path = get_word('\n');
     path = append(path, " ");
-    if (!strcmp(path, "resource/cgi-bin/send-marks")) {
+    if (!strcmp(path, "resource/cgi-bin/send-marks ")) {
+        puts("puts1");
+        printf("%s\n", HTTP_METHOD[POST]);
         post_flag = 1;
         header = append(header, HTTP_METHOD[POST]);
+        puts("puts2");
     }
     else
         header = append(header, HTTP_METHOD[GET]);
@@ -106,8 +109,10 @@ char *get_header(char *ip) {
     header = append(header, SEPARATOR);
     header = append(header, SEPARATOR);
     if (post_flag) {
+        puts("puts3");
         char *post_request = get_word('\n');
         header = append(header, post_request);
+        header = append(header, SEPARATOR);
     }
     return header;
 }
