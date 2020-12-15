@@ -41,6 +41,14 @@ enum value {
     ERROR
 };
 
+char PATHS_TO_FILES[][100] = {
+    "resource/html",
+    "resource/cgi-bin",
+    "resource/multimedia"
+    "resource/multimedia",
+    ""
+};
+
 char HEADER_HTTP[] = "HTTP/1.1";
 char HEADER_HOST[] = "Host:";
 char SEPARATOR[] = "\r\n";
@@ -97,16 +105,12 @@ char *get_client_word(int client_socket, char *end) {
     if (read(client_socket, &alpha, sizeof(char)) <= 0) {
         return NULL;
     }
-    if (alpha == '/') {
-        if (read(client_socket, &alpha, sizeof(char)) <= 0) {
-            return NULL;
-        }
-    }
     while (alpha != ' ' && alpha != '?' && alpha != '\0' && alpha != '\r' && alpha != '\n') {
         word = realloc(word, (n + 1) * sizeof(char));
         word[n] = alpha;
         n++;
         if (read(client_socket, &alpha, sizeof(char)) <= 0) {
+            break;
             return NULL;
         }
     }
@@ -223,24 +227,18 @@ char *get_content_length(int length) {
     } while (tmp != 0);
     char *content_length = malloc((j + 1) * sizeof(char));
     snprintf(content_length, j + 1, "%d", length);
-    printf("content_length: %s\n", content_length);
     return content_length;
 }
 
 char *get_header(char *file_name, int type_flag, int fd, int length) {
     char *content_type = get_content_type(type_flag);
-    puts(content_type);
     char *content_length = get_content_length(length);
-    puts(content_length);
     int size = snprintf(NULL, 0, "%s %s%s%s %s%s%s %s%s%s", HEADER_HTTP, HTTP_VALUE[OKAY], SEPARATOR,
     HEADER_TYPE, content_type, SEPARATOR, HEADER_LENGTH, content_length, SEPARATOR, SEPARATOR);
     char *header = malloc(size + 1);
     snprintf(header, size + 1, "%s %s%s%s %s%s%s %s%s%s", HEADER_HTTP, HTTP_VALUE[OKAY], SEPARATOR,
     HEADER_TYPE, content_type, SEPARATOR, HEADER_LENGTH, content_length, SEPARATOR, SEPARATOR);
-    puts("puts1");
-    puts(header);
     free(content_length);
-    puts(header);
     return header;
 }
 
@@ -407,7 +405,6 @@ void send_run_binary_result(int client_socket, char *file_name, int pipe_read_fd
 void request_is_binary(char *file_name, char *str, int client_socket, int fd) {
     int exec_flag = 0, pipe_read_fd;
     if (!strcmp(str, "HTTP/1.1")) {
-        puts("puts2");
         run_binary(file_name, NULL, &exec_flag, &pipe_read_fd);
     }
     else
@@ -415,22 +412,31 @@ void request_is_binary(char *file_name, char *str, int client_socket, int fd) {
     send_run_binary_result(client_socket, file_name, pipe_read_fd, exec_flag);
 }
 
-void work_with_get_request(int client_socket, char ***client_list, char *file_name, int invalid_flag, int fd) {
-    int type_flag;
-    char *server_list = NULL;
-        type_flag = file_type(file_name);
+char *get_path_to_file(char *file_name, int type_flag) {
+    int size = snprintf(NULL, 0, "%s%s", PATHS_TO_FILES[type_flag], file_name);
+    char *path = malloc((size + 1) * sizeof(char));
+    snprintf(path, size + 1, "%s%s", PATHS_TO_FILES[type_flag], file_name);
+    return path;
+}
+
+void work_with_get_request(int client_socket, char ***client_list, char *path, int invalid_flag, int type_flag, int fd) {
+    // int type_flag;
+     char *server_list = NULL;
+    //     type_flag = file_type(file_name);
+    //     char *path = get_path_to_file(file_name, type_flag);
+    //     write(1, path, strlen(path));
         switch(type_flag) {
             case TEXT_OR_HTML:
-                request_is_text(file_name, client_socket, type_flag, fd);
+                request_is_text(path, client_socket, type_flag, fd);
                 break;
             case BINARY:
-                request_is_binary(file_name, client_list[0][2], client_socket, fd);
+                request_is_binary(path, client_list[0][2], client_socket, fd);
                 break;
             case PNG:
-                request_is_text(file_name, client_socket, type_flag, fd);
+                request_is_text(path, client_socket, type_flag, fd);
                 break;
             case JPEG:
-                request_is_text(file_name, client_socket, type_flag, fd);
+                request_is_text(path, client_socket, type_flag, fd);
                 break;
             case WRONG_TYPE:
                 server_list = response_to_invalid_request();
@@ -440,34 +446,67 @@ void work_with_get_request(int client_socket, char ***client_list, char *file_na
         }
 }
 
-void work_with_post_request(int client_socket, char *file_name) {
-    int exec_flag = 0, pipe_read_fd;
-    char end;
-    char *request_parameters = get_client_word(client_socket, &end);
-    if (request_parameters != NULL)
-        puts(request_parameters);
-    printf("%d\n", exec_flag);
+char *get_parameters(int client_socket, int length) {
+    char *parameters = malloc((length + 1) * sizeof(char));
+    if (read(client_socket, parameters, length * sizeof(char)) <= 0)
+        return NULL;
+    parameters[length] = '\0';
+    return parameters;
+}
+
+void find_word_in_list(char ***list, char *search_word, int *line_num, int *num_in_line) {
+    int i, j;
+    for (i = 0; list[i] != NULL; i++) {
+        for (j = 0; list[i][j] != NULL; j++) {
+            if (!strcmp(list[i][j], search_word)) {
+                *line_num = i;
+                *num_in_line = j;
+            }
+        }
+    }
+}
+
+void work_with_post_request(int client_socket, char ***client_list, char *file_name) {
+    int exec_flag = 0, pipe_read_fd, line_num = -1, num_in_line = -1, length = 0;
+    char *length_str = NULL;
+    find_word_in_list(client_list, "Content-Length:", &line_num, &num_in_line);
+    if (line_num >= 0 && num_in_line >= 0) {
+        length_str = client_list[line_num][num_in_line + 1];
+        length = atoi(length_str);
+    }
+    char *request_parameters = get_parameters(client_socket, length);
     run_binary(file_name, request_parameters, &exec_flag, &pipe_read_fd);
     send_run_binary_result(client_socket, file_name, pipe_read_fd, exec_flag);
 }
 
 void interaction_with_client(int client_socket) {
     int fd;
+    int type_flag;
     int invalid_flag; //file_name_size;
     char ***client_list = NULL;
     client_list = get_client_list(client_socket);
     print_list(client_list);
     invalid_flag = check_client_list(client_list);
-    if ((invalid_flag) || (fd = open(client_list[0][1], O_RDONLY)) < 0) { //client_list[0][1] == file_name
+    type_flag = file_type(client_list[0][1]);
+    if (type_flag == WRONG_TYPE) {
+        char *server_list = response_to_invalid_request();
+        send_header(server_list, client_socket);
+        free(server_list);
+        clear_list(client_list);
+        return;
+    }
+    char *path = get_path_to_file(client_list[0][1], type_flag);
+    if (invalid_flag || (fd = open(path, O_RDONLY)) < 0) { //client_list[0][1] == file_name
         char *server_list = response_to_invalid_request();
         send_header(server_list, client_socket);
         free(server_list);
     } else {
         if (!strcmp(client_list[0][0], "POST"))
-            work_with_post_request(client_socket, client_list[0][1]);
+            work_with_post_request(client_socket, client_list, path);
         if (!strcmp(client_list[0][0], "GET"))
-            work_with_get_request(client_socket, client_list, client_list[0][1], invalid_flag, fd);
+            work_with_get_request(client_socket, client_list, path, invalid_flag, type_flag, fd);
     }
+    free(path);
     clear_list(client_list);
 }
 
