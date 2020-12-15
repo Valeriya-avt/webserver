@@ -31,6 +31,32 @@ enum types {
     WRONG_TYPE
 };
 
+enum methods {
+    GET,
+    POST
+};
+
+enum value {
+    OKAY,
+    ERROR
+};
+
+char HEADER_HTTP[] = "HTTP/1.1";
+char HEADER_HOST[] = "Host:";
+char SEPARATOR[] = "\r\n";
+char HEADER_LENGTH[] = "content-length:";
+char HEADER_TYPE[] = "content-type:";
+
+char HTTP_VALUE[][4] = {
+    "200",
+    "404"
+};
+
+char HTTP_METHOD[][7] = {
+    "GET",
+    "POST"
+};
+
 int init_socket(int port, int num_of_clients) {
     // open socket, return socket descriptor
     int server_socket = socket(PF_INET, SOCK_STREAM, 0);
@@ -71,7 +97,6 @@ char *get_client_word(int client_socket, char *end) {
     if (read(client_socket, &alpha, sizeof(char)) <= 0) {
         return NULL;
     }
-  //  printf("print1(%d %c) ", alpha, alpha);
     if (alpha == '/') {
         if (read(client_socket, &alpha, sizeof(char)) <= 0) {
             return NULL;
@@ -84,18 +109,13 @@ char *get_client_word(int client_socket, char *end) {
         if (read(client_socket, &alpha, sizeof(char)) <= 0) {
             return NULL;
         }
-      //  printf("print2(%d %c) ", alpha, alpha);
-
     }
     if (alpha == '\r') {
         read(client_socket, &alpha, sizeof(char));
         if (word == NULL) {
-     //       puts("It's NULL world");
             return NULL;
         }
-      //  printf("print3(%d %c) ", alpha, alpha);
     }
- //   printf("print4(%d %c) ", alpha, alpha);
     word = realloc(word, (n + 1) * sizeof(char));
     word[n] = '\0';
     *end = alpha;
@@ -111,9 +131,6 @@ char **get_client_string(int client_socket) {
         list[n] = get_client_word(client_socket, &end);
         n++;
     } while (end != '\n' && list[n - 1] != NULL);
-    // if (list[n - 1] == NULL) {
-    //     puts("It's NULL word1");
-    // }
     list = realloc(list, (n + 1) * sizeof(char *));
     list[n] = NULL;
     return list;
@@ -123,41 +140,13 @@ char ***get_client_list(int client_socket) {
     char ***list = NULL;
     int n = 0;
     do {
-    //    printf("It's %d's string\n", n + 1);
         list = realloc(list, (n + 1) * sizeof(char **));
         list[n] = get_client_string(client_socket);
         n++;
     } while (list[n - 1][0] != NULL);
-    // if (list[n - 1][0] == NULL) {
-    //     puts("It's NULL string");
-    // }
     list = realloc(list, (n + 1) * sizeof(char **));
     list[n] = NULL;
     return list;
-}
-
-char **get_first_string() {
-    int i, size;
-    char **str = NULL;
-    char word_1[] = "HTTP/1.1", word_2[] = "200";
-    str = realloc(str, 3 * sizeof(char *));
-    for (i = 0; i < 2; i++) {
-        if (!i) {
-            size = strlen(word_1);
-            str[i] = malloc((size + 1) * sizeof(char));
-            strcpy(str[i], word_1);
-            str[i][size] = '\0';
-        }
-        if (i) {
-            size = strlen(word_2);
-            str[i] = malloc((size + 1) * sizeof(char));
-            strcpy(str[i], word_2);
-            str[i][size] = '\0';
-        }
-
-    }
-    str[i] = NULL;
-    return str;
 }
 
 int file_type(char *file_name) {
@@ -190,7 +179,7 @@ int file_type(char *file_name) {
     return type_flag;
 }
 
-char *content_type(int type_flag) {
+char *get_content_type(int type_flag) {
     switch(type_flag) {
         case TEXT_OR_HTML:
             return "text/html";
@@ -203,31 +192,7 @@ char *content_type(int type_flag) {
     return "wrong type";
 }
 
-char **get_second_string(int type_flag) {
-    int i, size;
-    char *word_1 = "content-type:";
-    char **str = NULL;
-    str = realloc(str, 3 * sizeof(char *));
-    for (i = 0; i < 2; i++) {
-        if (!i) {
-            size = strlen(word_1);
-            str[i] = malloc((size + 1) * sizeof(char));
-            strcpy(str[i], word_1);
-            str[i][size] = '\0';
-        }
-        if (i) {
-            char *word_2 = content_type(type_flag);
-            size = strlen(word_2);
-            str[i] = malloc((size + 1) * sizeof(char));
-            strcpy(str[i], word_2);
-            str[i][size] = '\0';
-        }
-    }
-    str[i] = NULL;
-    return str;
-}
-
-int get_content_length(int fd) {
+int get_length(int fd) {
     int file_size;
     struct stat file;
     fstat(fd, &file);
@@ -249,78 +214,41 @@ char *get_length_and_rewrite(int fd, int *content_length) {
     return data;
 }
 
-char **get_third_string(int fd, int content_length) {
-    int i, j = 0, size, tmp;
-    tmp = content_length;
+char *get_content_length(int length) {
+    int j = 0, tmp;
+    tmp = length;
     do {
         tmp /= 10;
         j++;
     } while (tmp != 0);
-    char **str = NULL;
-    str = realloc(str, 3 * sizeof(char *));
-    char *word_1 = "content-length:", *word_2 = malloc((j + 1) * sizeof(char));
-    for (i = 0; i < 2; i++) {
-        if (!i) {
-            size = strlen(word_1);
-            str[i] = malloc((size + 1) * sizeof(char));
-            strcpy(str[i], word_1);
-            str[i][size] = '\0';
-        }
-        if (i) {
-            snprintf(word_2, 1024, "%d", content_length);
-            str[i] = malloc((j + 1) * sizeof(char));
-            strcpy(str[i], word_2);
-            str[i][j] = '\0';
-        }
-    }
-    str[i] = NULL;
-    free(word_2);
-    return str;
+    char *content_length = malloc((j + 1) * sizeof(char));
+    snprintf(content_length, j + 1, "%d", length);
+    printf("content_length: %s\n", content_length);
+    return content_length;
 }
 
-char ***response_to_invalid_request() {
-    int i, size;
-    char ***list = NULL;
-    char *word_1 = "HTTP/1.1", *word_2 = "404";
-    list = realloc(list, 2 * sizeof(char **));
-    list[0] = malloc(3 * sizeof(char *));
-    for (i = 0; i < 2; i++) {
-        if (!i) {
-            size = strlen(word_1);
-            list[0][i] = malloc((size + 1) * sizeof(char));
-            strcpy(list[0][i], word_1);
-            list[0][i][size] = '\0';
-        }
-        if (i) {
-            size = strlen(word_2);
-            list[0][i] = malloc((size + 1) * sizeof(char));
-            strcpy(list[0][i], word_2);
-            list[0][i][size] = '\0';
-        }
-    }
-    list[0][i] = NULL;
-    list[1] = NULL;
-    return list;
+char *get_header(char *file_name, int type_flag, int fd, int length) {
+    char *content_type = get_content_type(type_flag);
+    puts(content_type);
+    char *content_length = get_content_length(length);
+    puts(content_length);
+    int size = snprintf(NULL, 0, "%s %s%s%s %s%s%s %s%s%s", HEADER_HTTP, HTTP_VALUE[OKAY], SEPARATOR,
+    HEADER_TYPE, content_type, SEPARATOR, HEADER_LENGTH, content_length, SEPARATOR, SEPARATOR);
+    char *header = malloc(size + 1);
+    snprintf(header, size + 1, "%s %s%s%s %s%s%s %s%s%s", HEADER_HTTP, HTTP_VALUE[OKAY], SEPARATOR,
+    HEADER_TYPE, content_type, SEPARATOR, HEADER_LENGTH, content_length, SEPARATOR, SEPARATOR);
+    puts("puts1");
+    puts(header);
+    free(content_length);
+    puts(header);
+    return header;
 }
 
-char ***get_server_list(char *file_name, int type_flag, int fd, int content_length) {
-    int i = 1, num_of_str = 3;
-    char ***list = NULL;
-    for (i = 0; i < num_of_str; i++) {
-        list = realloc(list, (i + 1) * sizeof(char **));
-        if (!i) {
-            list[i] = get_first_string();
-        }
-        if (i == 1) {
-            list[i] = get_second_string(type_flag);
-        }
-        if (i > 1) {
-            list[i] = get_third_string(fd, content_length);
-        }
-    }
-    list = realloc(list, (i + 1) * sizeof(char **));
-    list[i] = NULL;
-    return list;
+char *response_to_invalid_request() {
+    int size = snprintf(NULL, 0, "%s %s%s%s", HEADER_HTTP, HTTP_VALUE[ERROR], SEPARATOR, SEPARATOR);
+    char *header = malloc(size + 1);
+    snprintf(header, size + 1, "%s %s%s%s", HEADER_HTTP, HTTP_VALUE[ERROR], SEPARATOR, SEPARATOR);
+    return header;
 }
 
 void clear_list(char ***list) {
@@ -333,23 +261,8 @@ void clear_list(char ***list) {
     free(list);
 }
 
-void send_header(char ***list, int client_socket) {
-    int i, j;
-    char separator = ' ';
-    for (i = 0; list[i] != NULL; i++) {
-        for (j = 0; list[i][j] != NULL; j++) {
-            if (write(client_socket, list[i][j], strlen(list[i][j]) * sizeof(char)) <= 0) {
-                perror("write");
-                return;
-            }
-            if (write(client_socket, &separator, sizeof(char)) < 0)
-                return;
-        }
-        if (write(client_socket, "\r\n", sizeof(char) * 2) < 0)
-            return;
-    }
-    if (write(client_socket, "\r\n", sizeof(char) * 2) < 0)
-        return;
+void send_header(char *header, int client_socket) {
+    write(client_socket, header, strlen(header));
 }
 
 void send_data(int client_socket, int fd) {
@@ -375,20 +288,15 @@ int check_client_list(char ***list) {
         for (j = 0; list[i][j] != NULL; j++) {
             if (i == 0 && j == 0) {
                 if (strcmp(list[i][j], "GET") != 0 && strcmp(list[i][j], "POST") != 0)
-           //     counter += strcmp(list[i][j], "GET");
                     return 1;
             }
             if (i == 1 && !j) {
                 if (strcmp(list[i][j], "Host:") != 0)
-            //    counter += strcmp(list[i][j], "Host:");
                     return 1;
             }
         }
     }
-    // if (!counter)
-    //     return 0;
-    // else
-        return 0;
+    return 0;
 }
 
 char *get_args(char *str, int *index) {
@@ -462,39 +370,37 @@ void print_list(char ***list) {
     int i, j;
     for (i = 0; list[i] != NULL; i++) {
         for (j = 0; list[i][j] != NULL; j++)
-          //  printf("list[%d][%d] = %s ", i, j, list[i][j]);
-          printf("%s ", list[i][j]);
+            printf("%s ", list[i][j]);
         putchar('\n');
     }
 }
 
 void request_is_text(char *file_name, int client_socket, int type_flag, int fd) {
-    int content_length;
-    char ***server_list = NULL;
-    content_length = get_content_length(fd);
-    server_list = get_server_list(file_name, type_flag, fd, content_length);
+    int length;
+    length = get_length(fd);
+    char *server_list = get_header(file_name, type_flag, fd, length);
     send_header(server_list, client_socket);
     send_data(client_socket, fd);
-    clear_list(server_list);
+    free(server_list);
 }
 
 void send_run_binary_result(int client_socket, char *file_name, int pipe_read_fd, int exec_flag) {
     int content_length;
-    char ***server_list = NULL;
+    char *server_list = NULL;
     char *data = get_length_and_rewrite(pipe_read_fd, &content_length);
     if (exec_flag) {
         server_list = response_to_invalid_request();
         send_header(server_list, client_socket);
-        clear_list(server_list); /////
+        free(server_list); /////
         return;
     }
     else {
-        server_list = get_server_list(file_name, BINARY, pipe_read_fd, content_length);
+        server_list = get_header(file_name, BINARY, pipe_read_fd, content_length);
     }
     send_header(server_list, client_socket);
     send_data_array(client_socket, data);
     close(pipe_read_fd);
-    clear_list(server_list);
+    free(server_list);
     free(data);
 }
 
@@ -507,30 +413,11 @@ void request_is_binary(char *file_name, char *str, int client_socket, int fd) {
     else
         run_binary(file_name, str, &exec_flag, &pipe_read_fd);
     send_run_binary_result(client_socket, file_name, pipe_read_fd, exec_flag);
-//     char *data = get_length_and_rewrite(pipe_read_fd, &content_length);
-//     if (exec_flag) {
-//         server_list = response_to_invalid_request();
-//         send_header(server_list, client_socket);
-//         return;
-//     }
-//     else {
-//         server_list = get_server_list(file_name, BINARY, pipe_read_fd, content_length);
-//     }
-//     send_header(server_list, client_socket);
-//     send_data_array(client_socket, data);
-//     close(pipe_read_fd);
-//     clear_list(server_list);
-//     free(data);
 }
 
 void work_with_get_request(int client_socket, char ***client_list, char *file_name, int invalid_flag, int fd) {
     int type_flag;
-    char ***server_list = NULL;
-    // if ((invalid_flag) || (fd = open(client_list[0][1], O_RDONLY)) < 0) { //client_list[0][1] == file_name
-    //     server_list = response_to_invalid_request();
-    //     send_header(server_list, client_socket);
-    //     clear_list(server_list);
-    // } else {
+    char *server_list = NULL;
         type_flag = file_type(file_name);
         switch(type_flag) {
             case TEXT_OR_HTML:
@@ -538,7 +425,6 @@ void work_with_get_request(int client_socket, char ***client_list, char *file_na
                 break;
             case BINARY:
                 request_is_binary(file_name, client_list[0][2], client_socket, fd);
-                // client_list[0][2] - possible request parameters
                 break;
             case PNG:
                 request_is_text(file_name, client_socket, type_flag, fd);
@@ -549,18 +435,17 @@ void work_with_get_request(int client_socket, char ***client_list, char *file_na
             case WRONG_TYPE:
                 server_list = response_to_invalid_request();
                 send_header(server_list, client_socket);
-                clear_list(server_list);
+                free(server_list);
                 break;
         }
 }
-//
+
 void work_with_post_request(int client_socket, char *file_name) {
     int exec_flag = 0, pipe_read_fd;
     char end;
     char *request_parameters = get_client_word(client_socket, &end);
     if (request_parameters != NULL)
         puts(request_parameters);
-  //  char *file_name = "resource/cgi-bin/get-marks";
     printf("%d\n", exec_flag);
     run_binary(file_name, request_parameters, &exec_flag, &pipe_read_fd);
     send_run_binary_result(client_socket, file_name, pipe_read_fd, exec_flag);
@@ -568,49 +453,21 @@ void work_with_post_request(int client_socket, char *file_name) {
 
 void interaction_with_client(int client_socket) {
     int fd;
-    char ***server_list = NULL;
     int invalid_flag; //file_name_size;
     char ***client_list = NULL;
     client_list = get_client_list(client_socket);
     print_list(client_list);
     invalid_flag = check_client_list(client_list);
-  //  file_name_size = strlen(client_list[0][1]);
-    // char *file_name = malloc(file_name_size + 1);
-    // strcpy(file_name, client_list[0][1]);
-    // file_name[file_name_size] = '\0';
-
-
     if ((invalid_flag) || (fd = open(client_list[0][1], O_RDONLY)) < 0) { //client_list[0][1] == file_name
-        server_list = response_to_invalid_request();
+        char *server_list = response_to_invalid_request();
         send_header(server_list, client_socket);
-        clear_list(server_list);
+        free(server_list);
     } else {
         if (!strcmp(client_list[0][0], "POST"))
             work_with_post_request(client_socket, client_list[0][1]);
         if (!strcmp(client_list[0][0], "GET"))
             work_with_get_request(client_socket, client_list, client_list[0][1], invalid_flag, fd);
-        // type_flag = file_type(client_list[0][1]);
-        // switch(type_flag) {
-        //     case TEXT_OR_HTML:
-        //         request_is_text(client_list[0][1], client_socket, type_flag, fd);
-        //         break;
-        //     case BINARY:
-        //         request_is_binary(client_list[0][1], client_list[0][2], client_socket, fd);
-        //         break;
-        //     case PNG:
-        //         request_is_text(client_list[0][1], client_socket, type_flag, fd);
-        //         break;
-        //     case JPEG:
-        //         request_is_text(client_list[0][1], client_socket, type_flag, fd);
-        //         break;
-        //     case WRONG_TYPE:
-        //         server_list = response_to_invalid_request();
-        //         send_header(server_list, client_socket);
-        //         clear_list(server_list);
-        //         break;
-        // }
     }
-  // free(file_name);
     clear_list(client_list);
 }
 
@@ -624,7 +481,6 @@ void connect_to_clients(int *client_sockets, struct sockaddr_in *client_addresse
             client_sockets[i] = accept(server_socket, (struct sockaddr *) &client_addresses[i], (socklen_t *) &size);
             if (client_sockets[i] < 0) {
                 perror("accept");
-           //     *num_of_clients = i + 1;
                 return;
             }
             printf("connected: %s %d\n", inet_ntoa(client_addresses[i].sin_addr), ntohs(client_addresses[i].sin_port));
@@ -634,7 +490,7 @@ void connect_to_clients(int *client_sockets, struct sockaddr_in *client_addresse
                     close(client_sockets[j]);
                 interaction_with_client(client_sockets[i]);
                 close(client_sockets[i]);
-                return;
+                exit(0);
             } else {
                 waitpid(pids[i], NULL, 0);
                 close(client_sockets[i]);
