@@ -22,12 +22,12 @@ enum methods {
 };
 
 char HEADER_HTTP[] = "HTTP/1.1";
-char HEADER_HOST[] = "Host: ";
+char HEADER_HOST[] = "Host:";
 char SEPARATOR[] = "\r\n";
 
 char HTTP_METHOD[][7] = {
-    "GET ",
-    "POST "
+    "GET",
+    "POST"
 };
 
 int init_socket(const char *ip, int port) {
@@ -78,42 +78,31 @@ char *get_word(char separator) {
     return word;
 }
 
-char *append(char *header, char *word) {
-    int size = strlen(header) + strlen(word) + 2;
-    char *string = malloc(size);
-    snprintf(string, size, "%s%s", header, word);
-    return string;
+void append(char *header, char *word) {
+    int header_size, word_size;
+    if (header == NULL)
+        header_size = 0;
+    else
+        header_size = strlen(header);
+    word_size = strlen(word);
+    header = realloc(header, header_size + word_size + 1);
+    snprintf(header + header_size, word_size + 1, "%s", word);
 }
 
-
-
 char *get_header(char *ip) {
-    int post_flag = 0;
-    char *header = "";
+    int index;
     char *path = get_word('\n');
-    path = append(path, " ");
-    if (!strcmp(path, "resource/cgi-bin/send-marks ")) {
-        puts("puts1");
-        printf("%s\n", HTTP_METHOD[POST]);
-        post_flag = 1;
-        header = append(header, HTTP_METHOD[POST]);
-        puts("puts2");
+    if (!strcmp(path, "resource/cgi-bin/send-marks")) {
+        index = POST;
     }
     else
-        header = append(header, HTTP_METHOD[GET]);
-    header = append(header, path);
-    header = append(header, HEADER_HTTP);
-    header = append(header, SEPARATOR);
-    header = append(header, HEADER_HOST);
-    header = append(header, ip);
-    header = append(header, SEPARATOR);
-    header = append(header, SEPARATOR);
-    if (post_flag) {
-        puts("puts3");
-        char *post_request = get_word('\n');
-        header = append(header, post_request);
-        header = append(header, SEPARATOR);
-    }
+        index = GET;
+    int size = snprintf(NULL, 0, "%s %s %s%s%s %s%s%s", HTTP_METHOD[index], path, HEADER_HTTP, SEPARATOR,
+    HEADER_HOST, ip, SEPARATOR, SEPARATOR);
+    char *header = malloc(size + 1);
+    snprintf(header, size + 1, "%s %s %s%s%s %s%s%s", HTTP_METHOD[index], path, HEADER_HTTP, SEPARATOR,
+    HEADER_HOST, ip, SEPARATOR, SEPARATOR);
+    free(path);
     return header;
 }
 
@@ -132,11 +121,12 @@ int main(int argc, char **argv) {
         char *port_str = get_word('/');
         int port = atoi(port_str);
         int server = init_socket(ip, port);
-        char *header = NULL;
-        header = get_header(ip);
+        char *header = get_header(ip);
         printf("%s", header);
         write(server, header, strlen(header));
         free(header);
+        free(ip);
+        free(port_str);
         print(server);
         close(server);
     }
