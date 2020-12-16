@@ -97,10 +97,10 @@ char *get_header(char *ip) {
     }
     else
         index = GET;
-    int size = snprintf(NULL, 0, "%s %s %s%s%s %s%s%s", HTTP_METHOD[index], path, HEADER_HTTP, SEPARATOR,
+    int size = snprintf(NULL, 0, "%s /%s %s%s%s %s%s%s", HTTP_METHOD[index], path, HEADER_HTTP, SEPARATOR,
     HEADER_HOST, ip, SEPARATOR, SEPARATOR);
     char *header = malloc(size + 1);
-    snprintf(header, size + 1, "%s %s %s%s%s %s%s%s", HTTP_METHOD[index], path, HEADER_HTTP, SEPARATOR,
+    snprintf(header, size + 1, "%s /%s %s%s%s %s%s%s", HTTP_METHOD[index], path, HEADER_HTTP, SEPARATOR,
     HEADER_HOST, ip, SEPARATOR, SEPARATOR);
     free(path);
     return header;
