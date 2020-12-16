@@ -105,7 +105,6 @@ int search_data(char ***list, char **query, int user_index, int subject_index, i
                 *column_num = i;
         }
         if (*column_num < 0) {
-            printf("%s %s\n", query[user_index + 1], query[subject_index + 1]);
             puts("Please enter a valid discipline");
             return -1;
         }
@@ -141,7 +140,7 @@ void send_data(char ***data_table, char **query, int user_index, int subject_ind
     }
     if (user_index >= 0 && subject_index >= 0) {
         if (search_data(data_table, query, user_index, subject_index, &row_num, &column_num) >= 0)
-            printf("The mark of the user %s in the subject of %s: %s/n", query[user_index + 1],
+            printf("The mark of the user %s in the subject of %s: %s\n", query[user_index + 1],
             query[subject_index + 1], data_table[row_num][column_num]);
     } else {
         if (user_index >= 0) {
