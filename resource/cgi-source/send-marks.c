@@ -78,14 +78,17 @@ void check_request(int n, char **query_string, int *user_index, int *subject_ind
     for (i = 0; i < 6; i++) {
         for (j = 1; j < n; j += 2) {
             if (!strcmp(query_string[j], "user")) {
-                *user_index = j;
+                if (query_string[j + 1] && strcmp(query_string[j + 1], "subject") != 0)
+                    *user_index = j;
             }
             if (!strcmp(query_string[j], "subject")) {
-                *subject_index = j;
+                if (query_string[j + 1] && strcmp(query_string[j + 1], "mark") != 0)
+                    *subject_index = j;
             }
 
             if (!strcmp(query_string[j], "mark")) {
-                *mark_index = j;
+                if (strcmp(query_string[j + 1], ""))
+                    *mark_index = j;
             }
         }
     }
@@ -99,7 +102,6 @@ int search_data(char ***list, char **query, int user_index, int subject_index, i
                 *row_num = i;
         }
         if (*row_num < 0) {
-            puts("Please enter a valid username");
             return -1;
         }
     }
@@ -109,28 +111,10 @@ int search_data(char ***list, char **query, int user_index, int subject_index, i
                 *column_num = i;
         }
         if (*column_num < 0) {
-            printf("%s %s\n", query[user_index + 1], query[subject_index + 1]);
-            puts("Please enter a valid discipline");
             return -1;
         }
     }
     return 0;
-}
-
-void print_row_or_column(char ***data_table, int row_num, int column_num) {
-    int i;
-    if (row_num >= 0) {
-        for (i = 1; data_table != NULL && data_table[row_num] != NULL && data_table[row_num][i] != NULL; i++) {
-            printf("%s ", data_table[row_num][i]);
-        }
-        puts("");
-    }
-    if (column_num >= 0) {
-        for (i = 1; data_table != NULL && data_table[i] != NULL && data_table[i][column_num] != NULL; i++) {
-            printf("%s ", data_table[i][column_num]);
-        }
-        puts("");
-    }
 }
 
 char *get_new_marks(char *old_marks, char *new_marks) {
@@ -159,44 +143,17 @@ void add_mark_to_the_file(char ***data_table, char *new_marks, int row_num, int 
 
 void send_data(char ***data_table, char **query, int user_index, int subject_index, int mark_index) {
     int row_num = -1, column_num = -1;
-    if (user_index < 0 && subject_index < 0) {
-        puts("You can change the marks in: ");
-        print_row_or_column(data_table, 0, -1);
-        puts("");
-        puts("from the following users: ");
-        print_row_or_column(data_table, -1, 0);
-    }
-    printf("%s %s %s\n", query[user_index + 1], query[subject_index + 1], query[mark_index + 1]);
-    if (user_index >= 0 && subject_index >= 0 && mark_index >= 0) {
+    if (user_index >= 0 && subject_index >= 0 && mark_index >= 0 && strcmp(query[mark_index + 1], "")) {
         if (search_data(data_table, query, user_index, subject_index, &row_num, &column_num) >= 0) {
             char *new_marks = get_new_marks(data_table[row_num][column_num], query[mark_index + 1]);
-            printf("You have marked %s for %s in %s\n", query[mark_index + 1], query[user_index + 1], query[subject_index + 1]);
-            printf("The mark of the user %s in the subject of %s: %s\n", query[user_index + 1],
+            printf("You have marked %s for %s in %s<br />\n", query[mark_index + 1], query[user_index + 1], query[subject_index + 1]);
+            printf("The mark of the user %s in the subject of %s: %s<br />\n", query[user_index + 1],
             query[subject_index + 1], new_marks);
             add_mark_to_the_file(data_table, new_marks, row_num, column_num);
-        }
-    } else {
-        if ((user_index >= 0 && mark_index >= 0) || (user_index >= 0 && mark_index < 0)){
-            if (search_data(data_table, query, user_index, subject_index, &row_num, &column_num) >= 0) {
-                printf("You can rate user %s in the following subjects: ", query[user_index + 1]);
-                print_row_or_column(data_table, 0, column_num - 1);
-                return;
-            }
-        }
-        if ((subject_index >= 0 && mark_index >= 0) || (subject_index >= 0 && mark_index < 0)) {
-            if (search_data(data_table, query, user_index, subject_index, &row_num, &column_num) >= 0) {
-                printf("You can give %s marks to the following users: ", query[subject_index + 1]);
-                print_row_or_column(data_table, row_num - 1, 0);
-                return;
-            }
-        }
-        if (user_index >= 0 && subject_index >= 0) {
-            if (search_data(data_table, query, user_index, subject_index, &row_num, &column_num) >= 0) {
-                printf("You can mark the user %s in  %s\n", query[user_index + 1], query[subject_index + 1]);
-                return;
-            }
+            return;
         }
     }
+    puts("Please enter correct parameters");
 }
 
 int main(int argc, char **argv) {
@@ -210,12 +167,6 @@ int main(int argc, char **argv) {
         return 0;
     }
     check_request(argc, argv, &user_index, &subject_index, &mark_index);
-    if ((argc == 6 && (user_index < 0 || subject_index < 0 || mark_index < 0)) ||
-        (argc == 4 && (user_index < 0 || subject_index < 0)) ||
-        (argc == 2 && user_index < 0 && subject_index < 0)) {
-        puts("Invalid arguments");
-        return 0;
-    }
     char ***data_table = NULL;
     fd = open("resource/database/marks.csv", O_RDONLY);
     data_table = get_data_table(fd);
