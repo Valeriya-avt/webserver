@@ -9,5 +9,5 @@ You can:
 * request grades of students in various subjects;
     - ```http://127.0.0.1:5000/get-marks?user=vasya&subject=math```
 * send marks to students:
-    - ```http://127.0.0.1:5000/post_form.html```
-         In this case, you must fill out a special form.
+    - ```http://127.0.0.1:5000/send_marks.html```
+In this case, you must fill out a special form.
