@@ -230,7 +230,7 @@ char *get_content_length(int length) {
     return content_length;
 }
 
-char *get_header(char *file_name, int type_flag, int fd, int length) {
+char *get_header(int fd, int type_flag, int length) {
     char *content_type = get_content_type(type_flag);
     char *content_length = get_content_length(length);
     int size = snprintf(NULL, 0, "%s %s%s%s %s%s%s %s%s%s", HEADER_HTTP, HTTP_VALUE[OKAY], SEPARATOR,
@@ -376,35 +376,35 @@ void print_list(char ***list) {
 void request_is_text(char *file_name, int client_socket, int type_flag, int fd) {
     int length;
     length = get_length(fd);
-    char *server_list = get_header(file_name, type_flag, fd, length);
-    send_header(server_list, client_socket);
+    char *header = get_header(fd, type_flag, length);
+    send_header(header, client_socket);
     send_data(client_socket, fd);
-    free(server_list);
+    free(header);
 }
 
-void send_run_binary_result(int client_socket, char *file_name, int pipe_read_fd, int exec_flag) {
+void send_run_binary_result(int client_socket, char *path, int pipe_read_fd, int exec_flag) {
     int content_length;
-    char *server_list = NULL;
+    char *header = NULL;
     char *data = get_length_and_rewrite(pipe_read_fd, &content_length);
     if (exec_flag) {
-        server_list = response_to_invalid_request();
-        send_header(server_list, client_socket);
-        free(server_list); /////
+        header = response_to_invalid_request();
+        send_header(header, client_socket);
+        free(header);
         return;
     }
     else {
-        server_list = get_header(file_name, BINARY, pipe_read_fd, content_length);
+        header = get_header(pipe_read_fd, BINARY, content_length);
     }
-    send_header(server_list, client_socket);
+    send_header(header, client_socket);
     send_data_array(client_socket, data);
     close(pipe_read_fd);
-    free(server_list);
+    free(header);
     free(data);
 }
 
 void request_is_binary(char *file_name, char *str, int client_socket, int fd) {
     int exec_flag = 0, pipe_read_fd;
-    if (!strcmp(str, "HTTP/1.1")) {
+    if (!strcmp(str, HEADER_HTTP)) {
         run_binary(file_name, NULL, &exec_flag, &pipe_read_fd);
     }
     else
@@ -420,30 +420,26 @@ char *get_path_to_file(char *file_name, int type_flag) {
 }
 
 void work_with_get_request(int client_socket, char ***client_list, char *path, int invalid_flag, int type_flag, int fd) {
-    // int type_flag;
-     char *server_list = NULL;
-    //     type_flag = file_type(file_name);
-    //     char *path = get_path_to_file(file_name, type_flag);
-    //     write(1, path, strlen(path));
-        switch(type_flag) {
-            case TEXT_OR_HTML:
-                request_is_text(path, client_socket, type_flag, fd);
-                break;
-            case BINARY:
-                request_is_binary(path, client_list[0][2], client_socket, fd);
-                break;
-            case PNG:
-                request_is_text(path, client_socket, type_flag, fd);
-                break;
-            case JPEG:
-                request_is_text(path, client_socket, type_flag, fd);
-                break;
-            case WRONG_TYPE:
-                server_list = response_to_invalid_request();
-                send_header(server_list, client_socket);
-                free(server_list);
-                break;
-        }
+     char *header = NULL;
+     switch(type_flag) {
+         case TEXT_OR_HTML:
+             request_is_text(path, client_socket, type_flag, fd);
+             break;
+         case BINARY:
+             request_is_binary(path, client_list[0][2], client_socket, fd);
+             break;
+         case PNG:
+             request_is_text(path, client_socket, type_flag, fd);
+             break;
+         case JPEG:
+             request_is_text(path, client_socket, type_flag, fd);
+             break;
+         case WRONG_TYPE:
+             header = response_to_invalid_request();
+             send_header(header, client_socket);
+             free(header);
+             break;
+     }
 }
 
 char *get_parameters(int client_socket, int length) {
@@ -475,7 +471,6 @@ void work_with_post_request(int client_socket, char ***client_list, char *file_n
         length = atoi(length_str);
     }
     char *request_parameters = get_parameters(client_socket, length);
-    puts(request_parameters);
     run_binary(file_name, request_parameters, &exec_flag, &pipe_read_fd);
     send_run_binary_result(client_socket, file_name, pipe_read_fd, exec_flag);
 }
@@ -483,24 +478,24 @@ void work_with_post_request(int client_socket, char ***client_list, char *file_n
 void interaction_with_client(int client_socket) {
     int fd;
     int type_flag;
-    int invalid_flag; //file_name_size;
+    int invalid_flag;
     char ***client_list = NULL;
     client_list = get_client_list(client_socket);
     print_list(client_list);
     invalid_flag = check_client_list(client_list);
     type_flag = file_type(client_list[0][1]);
     if (type_flag == WRONG_TYPE) {
-        char *server_list = response_to_invalid_request();
-        send_header(server_list, client_socket);
-        free(server_list);
+        char *header = response_to_invalid_request();
+        send_header(header, client_socket);
+        free(header);
         clear_list(client_list);
         return;
     }
     char *path = get_path_to_file(client_list[0][1], type_flag);
     if (invalid_flag || (fd = open(path, O_RDONLY)) < 0) { //client_list[0][1] == file_name
-        char *server_list = response_to_invalid_request();
-        send_header(server_list, client_socket);
-        free(server_list);
+        char *header = response_to_invalid_request();
+        send_header(header, client_socket);
+        free(header);
     } else {
         if (!strcmp(client_list[0][0], "POST"))
             work_with_post_request(client_socket, client_list, path);
