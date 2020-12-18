@@ -44,7 +44,7 @@ enum value {
 char PATHS_TO_FILES[][100] = {
     "resource/html",
     "resource/cgi-bin",
-    "resource/multimedia"
+    "resource/multimedia",
     "resource/multimedia",
     ""
 };
@@ -471,6 +471,7 @@ void work_with_post_request(int client_socket, char ***client_list, char *file_n
         length = atoi(length_str);
     }
     char *request_parameters = get_parameters(client_socket, length);
+    printf("%s\n\n", request_parameters);
     run_binary(file_name, request_parameters, &exec_flag, &pipe_read_fd);
     send_run_binary_result(client_socket, file_name, pipe_read_fd, exec_flag);
 }
