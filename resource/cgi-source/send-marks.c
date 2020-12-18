@@ -65,14 +65,6 @@ void clear(char ***list) {
     free(list);
 }
 
-void print(char ***list) {
-    int i, j;
-    for (i = 0; list != NULL && list[i] != NULL; i++) {
-        for (j = 0; list[i][j] != NULL; j++)
-            printf("list[%d][%d] = %s\n", i, j, list[i][j]);
-    }
-}
-
 void check_request(int n, char **query_string, int *user_index, int *subject_index, int *mark_index) {
     int i, j;
     for (i = 0; i < 6; i++) {
